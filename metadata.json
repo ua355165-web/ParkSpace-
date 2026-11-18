@@ -1,0 +1,6 @@
+{
+  "name": "ParkSpace",
+  "description": "Parking marketplace for Lahore, Islamabad, Faisalabad, and Karachi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
