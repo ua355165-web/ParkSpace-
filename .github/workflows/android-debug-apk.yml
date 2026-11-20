@@ -24,20 +24,40 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Verify Android SDK
+      - name: Install Android SDK packages
         shell: bash
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          test -d "$ANDROID_HOME/platforms"
-          test -d "$ANDROID_HOME/build-tools"
-          echo "Android SDK directories found."
+          set -e
+          set +o pipefail
+
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found"
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses
+
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Verify Build Environment
+        run: |
+          gradle --version
+          test -d "$ANDROID_HOME/platforms/android-36"
+          test -d "$ANDROID_HOME/build-tools/36.0.0"
 
       - name: Build ParkSpace Debug APK
-        shell: bash
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon assembleDebug
+        run: gradle --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
