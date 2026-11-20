@@ -1,5 +1,6 @@
 package com.example.feature.discovery.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apartment
 import androidx.compose.material.icons.outlined.Garage
@@ -34,6 +37,7 @@ import coil.compose.AsyncImage
 import com.example.core.domain.model.ParkingType
 import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 
 /**
  * Renders the Host's uploaded parking photo when present, or falls back to
@@ -57,12 +61,13 @@ fun ParkingSpaceMediaBanner(
       height = height,
     )
   } else {
+    val semantic = ParkSpaceThemeTokens.semantic
     Box(
       modifier =
         modifier
           .fillMaxWidth()
           .height(height)
-          .clip(MaterialTheme.shapes.small)
+          .clip(RoundedCornerShape(16.dp))
           .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
       AsyncImage(
@@ -72,8 +77,9 @@ fun ParkingSpaceMediaBanner(
         modifier = Modifier.fillMaxSize(),
       )
       Surface(
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-        shape = MaterialTheme.shapes.extraSmall,
+        color = semantic.glassSurfaceElevated,
+        border = BorderStroke(1.dp, semantic.glassBorder),
+        shape = CircleShape,
         modifier = Modifier.align(Alignment.BottomEnd).padding(ParkSpaceSpacing.xs),
       ) {
         Row(
@@ -122,12 +128,13 @@ fun ParkingVisualPlaceholder(
       ParkingType.OPEN_LOT -> Icons.Outlined.LocalParking
     }
 
+  val semantic = ParkSpaceThemeTokens.semantic
   Box(
     modifier =
       modifier
         .fillMaxWidth()
         .height(height)
-        .clip(MaterialTheme.shapes.small)
+        .clip(RoundedCornerShape(16.dp))
         .background(
           Brush.linearGradient(
             colors = listOf(primaryContainer, surfaceVariant),
@@ -162,13 +169,14 @@ fun ParkingVisualPlaceholder(
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Surface(
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        shape = MaterialTheme.shapes.extraSmall,
+        color = semantic.glassSurfaceElevated,
+        border = BorderStroke(1.dp, semantic.glassBorder),
+        shape = CircleShape,
       ) {
         Row(
           modifier =
             Modifier.padding(
-              horizontal = ParkSpaceSpacing.xs,
+              horizontal = ParkSpaceSpacing.sm,
               vertical = ParkSpaceSpacing.xxs,
             ),
           verticalAlignment = Alignment.CenterVertically,
@@ -191,12 +199,12 @@ fun ParkingVisualPlaceholder(
       Surface(
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
-        shape = MaterialTheme.shapes.extraSmall,
+        shape = CircleShape,
       ) {
         Row(
           modifier =
             Modifier.padding(
-              horizontal = ParkSpaceSpacing.xs,
+              horizontal = ParkSpaceSpacing.sm,
               vertical = ParkSpaceSpacing.xxs,
             ),
           verticalAlignment = Alignment.CenterVertically,
@@ -210,7 +218,7 @@ fun ParkingVisualPlaceholder(
             )
           }
           Text(
-            text = if (isCovered) "COVERED • DEMO" else "OPEN LOT • DEMO",
+            text = if (isCovered) "COVERED" else "OPEN LOT",
             style = ParkSpaceMonoCodeStyle,
           )
         }

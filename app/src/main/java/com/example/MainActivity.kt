@@ -6,10 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.core.di.ParkSpaceAppContainer
 import com.example.core.navigation.ParkSpaceNavHost
@@ -25,15 +23,17 @@ class MainActivity : ComponentActivity() {
       val foundationViewModel: ParkSpaceFoundationViewModel =
         viewModel(factory = ParkSpaceFoundationViewModel.Factory(appContainer))
 
+      val darkThemeOverride by
+        appContainer.themePreferences.darkThemeOverride.collectAsStateWithLifecycle()
       val systemDark = isSystemInDarkTheme()
-      var useDarkTheme by rememberSaveable { mutableStateOf(systemDark) }
+      val useDarkTheme = darkThemeOverride ?: systemDark
 
       ParkSpaceTheme(darkTheme = useDarkTheme) {
         ParkSpaceNavHost(
           appContainer = appContainer,
           viewModel = foundationViewModel,
           isDarkTheme = useDarkTheme,
-          onToggleTheme = { useDarkTheme = !useDarkTheme },
+          onToggleTheme = { appContainer.themePreferences.toggleTheme(useDarkTheme) },
         )
       }
     }

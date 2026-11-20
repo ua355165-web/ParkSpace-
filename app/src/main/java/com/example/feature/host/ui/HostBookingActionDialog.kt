@@ -12,22 +12,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.DirectionsCar
-import androidx.compose.material.icons.outlined.Key
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.ReportProblem
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,7 +36,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSecondaryButton
 import com.example.core.designsystem.components.ParkSpaceStatusPill
 import com.example.core.designsystem.components.StatusTone
 import com.example.core.domain.model.Booking
@@ -51,6 +46,7 @@ import com.example.core.domain.model.ParkingSpace
 import com.example.feature.booking.domain.BookingAvailabilityValidator
 import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 
@@ -87,6 +83,8 @@ fun HostBookingActionDialog(
     BookingStatus.PENDING_PAYMENT, BookingStatus.DRAFT, BookingStatus.EXPIRED, BookingStatus.DISPUTED -> StatusTone.INFO
   }
 
+  val semantic = ParkSpaceThemeTokens.semantic
+
   Dialog(
     onDismissRequest = onDismiss,
     properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -98,8 +96,9 @@ fun HostBookingActionDialog(
           .widthIn(max = 520.dp)
           .padding(ParkSpaceSpacing.sm)
           .testTag("host_booking_action_dialog"),
-      shape = MaterialTheme.shapes.medium,
-      color = MaterialTheme.colorScheme.surface,
+      shape = RoundedCornerShape(24.dp),
+      color = semantic.glassSurfaceElevated,
+      border = BorderStroke(1.dp, semantic.glassBorder),
       tonalElevation = 6.dp,
     ) {
       Column(
@@ -130,8 +129,9 @@ fun HostBookingActionDialog(
         }
 
         Surface(
-          shape = MaterialTheme.shapes.small,
-          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+          shape = RoundedCornerShape(16.dp),
+          color = semantic.glassSurface,
+          border = BorderStroke(1.dp, semantic.glassBorder),
           modifier = Modifier.fillMaxWidth(),
         ) {
           Column(
@@ -160,8 +160,9 @@ fun HostBookingActionDialog(
         }
 
         Surface(
-          shape = MaterialTheme.shapes.small,
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+          shape = RoundedCornerShape(16.dp),
+          color = semantic.glassSurface,
+          border = BorderStroke(1.dp, semantic.glassBorder),
           modifier = Modifier.fillMaxWidth(),
         ) {
           Column(
@@ -174,7 +175,7 @@ fun HostBookingActionDialog(
               Text(text = "Rs. ${booking.baseAmountPkr}", style = ParkSpaceMonoCodeStyle, color = MaterialTheme.colorScheme.primary)
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-              Text(text = "Platform Fee (8%):", style = MaterialTheme.typography.bodySmall)
+              Text(text = "Demo Platform Fee:", style = MaterialTheme.typography.bodySmall)
               Text(text = "Rs. ${booking.serviceFeePkr}", style = ParkSpaceMonoCodeStyle)
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -204,7 +205,7 @@ fun HostBookingActionDialog(
         if (!showCancelPrompt) {
           Column(verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs)) {
             if (booking.status == BookingStatus.CONFIRMED) {
-              ParkSpacePrimaryButton(
+              ParkSpaceLiquidGlassButton(
                 text = "Check-In Arriving Customer",
                 onClick = {
                   onCheckIn(booking.id)
@@ -215,7 +216,7 @@ fun HostBookingActionDialog(
             }
 
             if (booking.status == BookingStatus.CHECKED_IN) {
-              ParkSpacePrimaryButton(
+              ParkSpaceLiquidGlassButton(
                 text = "Record Customer Check-Out",
                 onClick = {
                   onCheckOut(booking.id)
@@ -226,7 +227,9 @@ fun HostBookingActionDialog(
             }
 
             if (onMessageCustomer != null) {
-              OutlinedButton(
+              ParkSpaceLiquidGlassSecondaryButton(
+                text = "Message Customer",
+                leadingIcon = Icons.Outlined.ChatBubbleOutline,
                 onClick = {
                   onDismiss()
                   onMessageCustomer()
@@ -235,16 +238,13 @@ fun HostBookingActionDialog(
                   Modifier.fillMaxWidth()
                     .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
                     .testTag("host_dialog_message_customer_button"),
-                shape = MaterialTheme.shapes.small,
-              ) {
-                Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.size(ParkSpaceSpacing.xs))
-                Text("Message Customer")
-              }
+              )
             }
 
             if (onReportDispute != null) {
-              OutlinedButton(
+              ParkSpaceLiquidGlassSecondaryButton(
+                text = "File / View Complaint",
+                leadingIcon = Icons.Outlined.ReportProblem,
                 onClick = {
                   onDismiss()
                   onReportDispute()
@@ -253,34 +253,27 @@ fun HostBookingActionDialog(
                   Modifier.fillMaxWidth()
                     .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
                     .testTag("host_dialog_report_dispute_button"),
-                shape = MaterialTheme.shapes.small,
-              ) {
-                Icon(Icons.Outlined.ReportProblem, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.size(ParkSpaceSpacing.xs))
-                Text("File / View Complaint")
-              }
+              )
             }
 
             if (booking.status in setOf(BookingStatus.CONFIRMED, BookingStatus.PENDING_PAYMENT, BookingStatus.CHECKED_IN)) {
-              OutlinedButton(
+              ParkSpaceLiquidGlassSecondaryButton(
+                text = "Host Cancel (Issue 100% Demo Refund)",
+                leadingIcon = Icons.Outlined.Cancel,
+                accentColor = MaterialTheme.colorScheme.error,
                 onClick = { showCancelPrompt = true },
                 modifier =
                   Modifier.fillMaxWidth()
                     .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
                     .testTag("host_dialog_open_cancel_button"),
-                shape = MaterialTheme.shapes.small,
-              ) {
-                Icon(Icons.Outlined.Cancel, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.size(ParkSpaceSpacing.xs))
-                Text("Host Cancel (Issue 100% Demo Refund)", color = MaterialTheme.colorScheme.error)
-              }
+              )
             }
           }
         } else {
           Surface(
-            shape = MaterialTheme.shapes.small,
+            shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f),
+            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.18f),
             modifier = Modifier.fillMaxWidth(),
           ) {
             Column(modifier = Modifier.padding(ParkSpaceSpacing.sm), verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs)) {
@@ -299,21 +292,22 @@ fun HostBookingActionDialog(
                 onValueChange = { cancelReason = it },
                 label = { Text("Reason for Cancellation *") },
                 placeholder = { Text("e.g. Property maintenance, gate obstruction") },
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth().testTag("host_cancel_reason_input"),
               )
               Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
               ) {
-                OutlinedButton(
+                ParkSpaceLiquidGlassSecondaryButton(
+                  text = "Back",
                   onClick = { showCancelPrompt = false },
                   modifier = Modifier.weight(1f),
-                  shape = MaterialTheme.shapes.small,
-                ) {
-                  Text("Back")
-                }
-                ParkSpacePrimaryButton(
+                )
+                ParkSpaceLiquidGlassButton(
                   text = "Confirm Cancel",
+                  accentColor = MaterialTheme.colorScheme.error,
+                  contentColor = MaterialTheme.colorScheme.onError,
                   onClick = {
                     onCancelBooking(booking.id, cancelReason)
                     onDismiss()

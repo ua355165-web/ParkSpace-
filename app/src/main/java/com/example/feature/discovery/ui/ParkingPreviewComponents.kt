@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Close
@@ -27,17 +28,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.core.config.AppEnvironment
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
 import com.example.core.designsystem.components.ParkSpaceStatusPill
 import com.example.core.designsystem.components.StatusTone
 import com.example.feature.discovery.domain.model.ParkingPublicListing
 import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceMonoPriceStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -48,20 +51,21 @@ fun ParkingPreviewCard(
   isSelectedHighlight: Boolean = false,
   modifier: Modifier = Modifier,
 ) {
+  val semantic = ParkSpaceThemeTokens.semantic
   Surface(
     modifier =
       modifier
         .fillMaxWidth()
         .clickable { onViewDetails(listing.id) }
         .testTag("parking_card_${listing.id}"),
-    shape = MaterialTheme.shapes.medium,
-    color = MaterialTheme.colorScheme.surface,
+    shape = RoundedCornerShape(22.dp),
+    color = semantic.glassSurfaceElevated,
     border =
       BorderStroke(
-        width = if (isSelectedHighlight) 2.dp else 1.dp,
+        width = if (isSelectedHighlight) 1.5.dp else 1.dp,
         color =
           if (isSelectedHighlight) MaterialTheme.colorScheme.primary
-          else MaterialTheme.colorScheme.outlineVariant,
+          else semantic.glassBorder,
       ),
     tonalElevation = if (isSelectedHighlight) 4.dp else 1.dp,
   ) {
@@ -86,7 +90,7 @@ fun ParkingPreviewCard(
         Column(modifier = Modifier.weight(1f)) {
           Text(
             text = listing.title,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
           )
@@ -120,8 +124,9 @@ fun ParkingPreviewCard(
 
       // ~200m Public Location Privacy Indicator
       Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.extraSmall,
+        color = semantic.glassSurface,
+        border = BorderStroke(1.dp, semantic.glassBorder),
+        shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth(),
       ) {
         Row(
@@ -227,7 +232,7 @@ fun ParkingPreviewCard(
           )
         }
 
-        ParkSpacePrimaryButton(
+        ParkSpaceLiquidGlassButton(
           text = stringResource(R.string.discovery_view_details),
           onClick = { onViewDetails(listing.id) },
           modifier = Modifier.testTag("view_details_${listing.id}"),

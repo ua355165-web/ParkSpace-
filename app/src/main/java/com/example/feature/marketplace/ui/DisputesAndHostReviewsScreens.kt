@@ -16,19 +16,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.RateReview
 import androidx.compose.material.icons.outlined.ReportProblem
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -44,14 +43,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.example.R
-import com.example.core.config.AppEnvironment
 import com.example.core.config.UserRole
-import com.example.core.designsystem.components.ParkSpaceModeBanner
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceAtmosphericBackground
+import com.example.core.designsystem.components.ParkSpaceCompactDemoPill
+import com.example.core.designsystem.components.ParkSpaceGlassIconButton
+import com.example.core.designsystem.components.ParkSpaceGlassSurface
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSecondaryButton
 import com.example.core.designsystem.components.ParkSpaceStatusPill
 import com.example.core.designsystem.components.StatusTone
 import com.example.core.domain.model.BookingDispute
@@ -62,6 +66,7 @@ import com.example.feature.marketplace.DisputesCenterUiState
 import com.example.feature.marketplace.HostReviewItem
 import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +80,7 @@ fun DisputesCenterScreen(
   onResolveDispute: (disputeId: String, note: String) -> Unit,
   onDismissFeedback: () -> Unit,
   modifier: Modifier = Modifier,
+  isDarkTheme: Boolean = false,
 ) {
   var showFilePickerBookingDialog by rememberSaveable(prefillBookingId) { mutableStateOf(false) }
   var selectedBookingForNewDispute by remember(prefillBookingId, uiState.eligibleBookings) {
@@ -85,126 +91,128 @@ fun DisputesCenterScreen(
   }
   var hostRespondTarget by remember { mutableStateOf<BookingDispute?>(null) }
   var resolveTarget by remember { mutableStateOf<BookingDispute?>(null) }
+  val semantic = ParkSpaceThemeTokens.semantic
 
-  Scaffold(
-    modifier = modifier.fillMaxSize(),
-    containerColor = MaterialTheme.colorScheme.background,
-    contentWindowInsets = WindowInsets.safeDrawing,
-    topBar = {
-      TopAppBar(
-        title = { Text("Complaints & Disputes", style = MaterialTheme.typography.titleLarge) },
-        navigationIcon = {
-          IconButton(
-            onClick = onBack,
-            modifier = Modifier.size(ParkSpaceSpacing.minTouchTarget).testTag("disputes_back_button"),
+  ParkSpaceAtmosphericBackground(isDarkTheme = isDarkTheme, modifier = modifier) {
+    Scaffold(
+      modifier = Modifier.fillMaxSize(),
+      containerColor = Color.Transparent,
+      contentWindowInsets = WindowInsets.safeDrawing,
+      topBar = {
+        TopAppBar(
+          title = { Text("Complaints & Disputes", style = MaterialTheme.typography.titleLarge) },
+          navigationIcon = {
+            ParkSpaceGlassIconButton(
+              onClick = onBack,
+              icon = Icons.AutoMirrored.Outlined.ArrowBack,
+              contentDescription = "Back",
+              testTag = "disputes_back_button",
+            )
+          },
+          actions = {
+            ParkSpaceCompactDemoPill(
+              modifier = Modifier.padding(end = ParkSpaceSpacing.xs).testTag("mode_banner"),
+            )
+          },
+          colors =
+            TopAppBarDefaults.topAppBarColors(
+              containerColor = Color.Transparent,
+              scrolledContainerColor = semantic.glassSurfaceElevated,
+            ),
+        )
+      },
+      floatingActionButton = {
+        if (uiState.eligibleBookings.isNotEmpty()) {
+          FloatingActionButton(
+            onClick = { showFilePickerBookingDialog = true },
+            shape = CircleShape,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.testTag("disputes_fab_file"),
           ) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-      )
-    },
-    floatingActionButton = {
-      if (uiState.eligibleBookings.isNotEmpty()) {
-        FloatingActionButton(
-          onClick = { showFilePickerBookingDialog = true },
-          containerColor = MaterialTheme.colorScheme.primary,
-          contentColor = MaterialTheme.colorScheme.onPrimary,
-          modifier = Modifier.testTag("disputes_fab_file"),
-        ) {
-          Icon(Icons.Outlined.Add, contentDescription = "Report Issue")
-        }
-      }
-    },
-  ) { innerPadding ->
-    Box(
-      modifier = Modifier.fillMaxSize().padding(innerPadding),
-      contentAlignment = Alignment.TopCenter,
-    ) {
-      Column(modifier = Modifier.widthIn(max = ParkSpaceSpacing.maxReadableWidth).fillMaxSize()) {
-        Box(modifier = Modifier.padding(horizontal = ParkSpaceSpacing.screenHorizontal)) {
-          ParkSpaceModeBanner(mode = AppEnvironment.currentMode)
-        }
-
-        if (feedback != null) {
-          Surface(
-            modifier =
-              Modifier.fillMaxWidth()
-                .padding(horizontal = ParkSpaceSpacing.screenHorizontal, vertical = ParkSpaceSpacing.xs)
-                .testTag("disputes_feedback_banner"),
-            shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.primaryContainer,
-          ) {
-            Row(
-              modifier = Modifier.padding(ParkSpaceSpacing.sm),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
-            ) {
-              Text(
-                text = feedback,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.weight(1f),
-              )
-              TextButton(onClick = onDismissFeedback) { Text("OK") }
-            }
+            Icon(Icons.Outlined.Add, contentDescription = "Report Issue")
           }
         }
-
-        if (uiState.disputes.isEmpty()) {
-          Box(
-            modifier = Modifier.fillMaxSize().padding(ParkSpaceSpacing.lg),
-            contentAlignment = Alignment.Center,
-          ) {
+      },
+    ) { innerPadding ->
+      Box(
+        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        contentAlignment = Alignment.TopCenter,
+      ) {
+        Column(modifier = Modifier.widthIn(max = ParkSpaceSpacing.maxReadableWidth).fillMaxSize()) {
+          if (feedback != null) {
             Surface(
-              modifier = Modifier.fillMaxWidth().testTag("disputes_empty_state"),
-              shape = MaterialTheme.shapes.medium,
-              color = MaterialTheme.colorScheme.surface,
-              border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+              modifier =
+                Modifier.fillMaxWidth()
+                  .padding(horizontal = ParkSpaceSpacing.screenHorizontal, vertical = ParkSpaceSpacing.xs)
+                  .testTag("disputes_feedback_banner"),
+              shape = RoundedCornerShape(16.dp),
+              color = semantic.glassSurfaceElevated,
+              border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
             ) {
-              Column(
-                modifier = Modifier.padding(ParkSpaceSpacing.lg),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+              Row(
+                modifier = Modifier.padding(ParkSpaceSpacing.sm),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
               ) {
-                Icon(
-                  Icons.Outlined.ReportProblem,
-                  contentDescription = null,
-                  tint = MaterialTheme.colorScheme.primary,
-                  modifier = Modifier.size(36.dp),
-                )
-                Text(stringResource(R.string.empty_disputes), style = MaterialTheme.typography.titleMedium)
                 Text(
-                  text = "Issues reported by Customers or Hosts on an existing booking appear here with live resolution status.",
+                  text = feedback,
                   style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  color = MaterialTheme.colorScheme.onSurface,
+                  modifier = Modifier.weight(1f),
                 )
+                TextButton(onClick = onDismissFeedback) { Text("OK") }
               }
             }
           }
-        } else {
-          LazyColumn(
-            modifier = Modifier.fillMaxSize().testTag("disputes_list"),
-            contentPadding = PaddingValues(ParkSpaceSpacing.screenHorizontal, ParkSpaceSpacing.sm),
-            verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
-          ) {
-            items(uiState.disputes, key = { it.id }) { dispute ->
-              val tone =
-                when (dispute.status) {
-                  DisputeStatus.OPEN -> StatusTone.ERROR
-                  DisputeStatus.UNDER_REVIEW -> StatusTone.PENDING
-                  DisputeStatus.RESOLVED,
-                  DisputeStatus.DISMISSED -> StatusTone.AVAILABLE
-                }
-              Surface(
-                modifier = Modifier.fillMaxWidth().testTag("dispute_card_${dispute.id}"),
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+
+          if (uiState.disputes.isEmpty()) {
+            Box(
+              modifier = Modifier.fillMaxSize().padding(ParkSpaceSpacing.lg),
+              contentAlignment = Alignment.Center,
+            ) {
+              ParkSpaceGlassSurface(
+                modifier = Modifier.fillMaxWidth().testTag("disputes_empty_state"),
+                contentPaddingDp = 24,
               ) {
                 Column(
-                  modifier = Modifier.padding(ParkSpaceSpacing.sm),
-                  verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
+                  modifier = Modifier.fillMaxWidth(),
+                  horizontalAlignment = Alignment.CenterHorizontally,
+                  verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+                ) {
+                  Icon(
+                    Icons.Outlined.ReportProblem,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(36.dp),
+                  )
+                  Text(stringResource(R.string.empty_disputes), style = MaterialTheme.typography.titleMedium)
+                  Text(
+                    text = "Issues reported by Customers or Hosts on an existing booking appear here with live resolution status.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+              }
+            }
+          } else {
+            LazyColumn(
+              modifier = Modifier.fillMaxSize().testTag("disputes_list"),
+              contentPadding = PaddingValues(ParkSpaceSpacing.screenHorizontal, ParkSpaceSpacing.sm),
+              verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+            ) {
+              items(uiState.disputes, key = { it.id }) { dispute ->
+                val tone =
+                  when (dispute.status) {
+                    DisputeStatus.OPEN -> StatusTone.ERROR
+                    DisputeStatus.UNDER_REVIEW -> StatusTone.PENDING
+                    DisputeStatus.RESOLVED,
+                    DisputeStatus.DISMISSED -> StatusTone.AVAILABLE
+                  }
+                ParkSpaceGlassSurface(
+                  modifier = Modifier.fillMaxWidth().testTag("dispute_card_${dispute.id}"),
+                  cornerRadiusDp = 18,
+                  contentPaddingDp = 16,
                 ) {
                   Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -241,17 +249,13 @@ fun DisputesCenterScreen(
                       horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
                     ) {
                       if (uiState.activeRole == UserRole.HOST) {
-                        OutlinedButton(
+                        ParkSpaceLiquidGlassSecondaryButton(
+                          text = "Host Response",
                           onClick = { hostRespondTarget = dispute },
-                          modifier =
-                            Modifier.weight(1f)
-                              .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
-                              .testTag("host_respond_dispute_${dispute.id}"),
-                        ) {
-                          Text("Host Response")
-                        }
+                          modifier = Modifier.weight(1f).testTag("host_respond_dispute_${dispute.id}"),
+                        )
                       }
-                      ParkSpacePrimaryButton(
+                      ParkSpaceLiquidGlassButton(
                         text = "Mark Resolved",
                         onClick = { resolveTarget = dispute },
                         modifier = Modifier.weight(1f).testTag("resolve_dispute_${dispute.id}"),
@@ -268,29 +272,39 @@ fun DisputesCenterScreen(
   }
 
   if (showFilePickerBookingDialog) {
-    AlertDialog(
-      onDismissRequest = { showFilePickerBookingDialog = false },
-      title = { Text("Select Booking to Report") },
-      text = {
-        Column(verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs)) {
-          uiState.eligibleBookings.forEach { pair ->
-            OutlinedButton(
-              onClick = {
-                showFilePickerBookingDialog = false
-                selectedBookingForNewDispute = pair
-              },
-              modifier = Modifier.fillMaxWidth(),
-            ) {
-              Text("${pair.first.bookingCode} • ${pair.second}")
+    Dialog(onDismissRequest = { showFilePickerBookingDialog = false }) {
+      Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = semantic.glassSurfaceElevated,
+        border = BorderStroke(1.dp, semantic.glassBorder),
+        modifier = Modifier.fillMaxWidth(),
+      ) {
+        Column(
+          modifier = Modifier.padding(ParkSpaceSpacing.lg),
+          verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+        ) {
+          Text("Select Booking to Report", style = MaterialTheme.typography.titleLarge)
+          Column(verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs)) {
+            uiState.eligibleBookings.forEach { pair ->
+              ParkSpaceLiquidGlassSecondaryButton(
+                text = "${pair.first.bookingCode} • ${pair.second}",
+                onClick = {
+                  showFilePickerBookingDialog = false
+                  selectedBookingForNewDispute = pair
+                },
+                modifier = Modifier.fillMaxWidth(),
+              )
             }
           }
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+          ) {
+            TextButton(onClick = { showFilePickerBookingDialog = false }) { Text("Cancel") }
+          }
         }
-      },
-      confirmButton = {},
-      dismissButton = {
-        TextButton(onClick = { showFilePickerBookingDialog = false }) { Text("Cancel") }
-      },
-    )
+      }
+    }
   }
 
   val targetBookingPair = selectedBookingForNewDispute
@@ -344,110 +358,114 @@ fun HostReviewsScreen(
   onReplyToReview: (reviewId: String, reply: String) -> Unit,
   onDismissFeedback: () -> Unit,
   modifier: Modifier = Modifier,
+  isDarkTheme: Boolean = false,
 ) {
   var replyTarget by remember { mutableStateOf<HostReviewItem?>(null) }
+  val semantic = ParkSpaceThemeTokens.semantic
 
-  Scaffold(
-    modifier = modifier.fillMaxSize(),
-    containerColor = MaterialTheme.colorScheme.background,
-    contentWindowInsets = WindowInsets.safeDrawing,
-    topBar = {
-      TopAppBar(
-        title = { Text("Customer Reviews (${reviews.size})", style = MaterialTheme.typography.titleLarge) },
-        navigationIcon = {
-          IconButton(
-            onClick = onBack,
-            modifier = Modifier.size(ParkSpaceSpacing.minTouchTarget).testTag("host_reviews_back_button"),
-          ) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-      )
-    },
-  ) { innerPadding ->
-    Box(
-      modifier = Modifier.fillMaxSize().padding(innerPadding),
-      contentAlignment = Alignment.TopCenter,
-    ) {
-      Column(modifier = Modifier.widthIn(max = ParkSpaceSpacing.maxReadableWidth).fillMaxSize()) {
-        Box(modifier = Modifier.padding(horizontal = ParkSpaceSpacing.screenHorizontal)) {
-          ParkSpaceModeBanner(mode = AppEnvironment.currentMode)
-        }
-
-        if (feedback != null) {
-          Surface(
-            modifier =
-              Modifier.fillMaxWidth()
-                .padding(horizontal = ParkSpaceSpacing.screenHorizontal, vertical = ParkSpaceSpacing.xs)
-                .testTag("host_reviews_feedback_banner"),
-            shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.primaryContainer,
-          ) {
-            Row(
-              modifier = Modifier.padding(ParkSpaceSpacing.sm),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
-            ) {
-              Text(
-                text = feedback,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.weight(1f),
-              )
-              TextButton(onClick = onDismissFeedback) { Text("OK") }
-            }
-          }
-        }
-
-        if (reviews.isEmpty()) {
-          Box(
-            modifier = Modifier.fillMaxSize().padding(ParkSpaceSpacing.lg),
-            contentAlignment = Alignment.Center,
-          ) {
+  ParkSpaceAtmosphericBackground(isDarkTheme = isDarkTheme, modifier = modifier) {
+    Scaffold(
+      modifier = Modifier.fillMaxSize(),
+      containerColor = Color.Transparent,
+      contentWindowInsets = WindowInsets.safeDrawing,
+      topBar = {
+        TopAppBar(
+          title = { Text("Customer Reviews (${reviews.size})", style = MaterialTheme.typography.titleLarge) },
+          navigationIcon = {
+            ParkSpaceGlassIconButton(
+              onClick = onBack,
+              icon = Icons.AutoMirrored.Outlined.ArrowBack,
+              contentDescription = "Back",
+              testTag = "host_reviews_back_button",
+            )
+          },
+          actions = {
+            ParkSpaceCompactDemoPill(
+              modifier = Modifier.padding(end = ParkSpaceSpacing.xs).testTag("mode_banner"),
+            )
+          },
+          colors =
+            TopAppBarDefaults.topAppBarColors(
+              containerColor = Color.Transparent,
+              scrolledContainerColor = semantic.glassSurfaceElevated,
+            ),
+        )
+      },
+    ) { innerPadding ->
+      Box(
+        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        contentAlignment = Alignment.TopCenter,
+      ) {
+        Column(modifier = Modifier.widthIn(max = ParkSpaceSpacing.maxReadableWidth).fillMaxSize()) {
+          if (feedback != null) {
             Surface(
-              modifier = Modifier.fillMaxWidth().testTag("host_reviews_empty_state"),
-              shape = MaterialTheme.shapes.medium,
-              color = MaterialTheme.colorScheme.surface,
-              border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+              modifier =
+                Modifier.fillMaxWidth()
+                  .padding(horizontal = ParkSpaceSpacing.screenHorizontal, vertical = ParkSpaceSpacing.xs)
+                  .testTag("host_reviews_feedback_banner"),
+              shape = RoundedCornerShape(16.dp),
+              color = semantic.glassSurfaceElevated,
+              border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
             ) {
-              Column(
-                modifier = Modifier.padding(ParkSpaceSpacing.lg),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+              Row(
+                modifier = Modifier.padding(ParkSpaceSpacing.sm),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
               ) {
-                Icon(
-                  Icons.Outlined.RateReview,
-                  contentDescription = null,
-                  tint = MaterialTheme.colorScheme.primary,
-                  modifier = Modifier.size(36.dp),
-                )
-                Text(stringResource(R.string.empty_reviews), style = MaterialTheme.typography.titleMedium)
                 Text(
-                  text = "Verified reviews appear only after Customers complete a Demo check-out at your parking spaces.",
+                  text = feedback,
                   style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  color = MaterialTheme.colorScheme.onSurface,
+                  modifier = Modifier.weight(1f),
                 )
+                TextButton(onClick = onDismissFeedback) { Text("OK") }
               }
             }
           }
-        } else {
-          LazyColumn(
-            modifier = Modifier.fillMaxSize().testTag("host_reviews_list"),
-            contentPadding = PaddingValues(ParkSpaceSpacing.screenHorizontal, ParkSpaceSpacing.sm),
-            verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
-          ) {
-            items(reviews, key = { it.review.id }) { item ->
-              val rev = item.review
-              Surface(
-                modifier = Modifier.fillMaxWidth().testTag("host_review_card_${rev.id}"),
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+
+          if (reviews.isEmpty()) {
+            Box(
+              modifier = Modifier.fillMaxSize().padding(ParkSpaceSpacing.lg),
+              contentAlignment = Alignment.Center,
+            ) {
+              ParkSpaceGlassSurface(
+                modifier = Modifier.fillMaxWidth().testTag("host_reviews_empty_state"),
+                accentGlow = semantic.hostGlow,
+                contentPaddingDp = 24,
               ) {
                 Column(
-                  modifier = Modifier.padding(ParkSpaceSpacing.sm),
-                  verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
+                  modifier = Modifier.fillMaxWidth(),
+                  horizontalAlignment = Alignment.CenterHorizontally,
+                  verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+                ) {
+                  Icon(
+                    Icons.Outlined.RateReview,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(36.dp),
+                  )
+                  Text(stringResource(R.string.empty_reviews), style = MaterialTheme.typography.titleMedium)
+                  Text(
+                    text = "Verified reviews appear only after Customers complete a Demo check-out at your parking spaces.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+              }
+            }
+          } else {
+            LazyColumn(
+              modifier = Modifier.fillMaxSize().testTag("host_reviews_list"),
+              contentPadding = PaddingValues(ParkSpaceSpacing.screenHorizontal, ParkSpaceSpacing.sm),
+              verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+            ) {
+              items(reviews, key = { it.review.id }) { item ->
+                val rev = item.review
+                ParkSpaceGlassSurface(
+                  modifier = Modifier.fillMaxWidth().testTag("host_review_card_${rev.id}"),
+                  accentGlow = semantic.hostGlow,
+                  cornerRadiusDp = 18,
+                  contentPaddingDp = 16,
                 ) {
                   Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -473,8 +491,9 @@ fun HostReviewsScreen(
                   Text(rev.comment, style = MaterialTheme.typography.bodyMedium)
                   if (rev.hostReply != null) {
                     Surface(
-                      shape = MaterialTheme.shapes.extraSmall,
-                      color = MaterialTheme.colorScheme.surfaceVariant,
+                      shape = RoundedCornerShape(12.dp),
+                      color = semantic.glassSurface,
+                      border = BorderStroke(1.dp, semantic.glassBorder),
                       modifier = Modifier.fillMaxWidth(),
                     ) {
                       Text(
@@ -484,15 +503,11 @@ fun HostReviewsScreen(
                       )
                     }
                   } else {
-                    OutlinedButton(
+                    ParkSpaceLiquidGlassSecondaryButton(
+                      text = "Reply to Customer",
                       onClick = { replyTarget = item },
-                      modifier =
-                        Modifier.fillMaxWidth()
-                          .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
-                          .testTag("reply_review_button_${rev.id}"),
-                    ) {
-                      Text("Reply to Customer")
-                    }
+                      modifier = Modifier.fillMaxWidth().testTag("reply_review_button_${rev.id}"),
+                    )
                   }
                 }
               }
@@ -528,12 +543,20 @@ private fun SimpleNoteInputDialog(
 ) {
   var note by rememberSaveable { mutableStateOf("") }
   var error by rememberSaveable { mutableStateOf<String?>(null) }
+  val semantic = ParkSpaceThemeTokens.semantic
 
-  AlertDialog(
-    onDismissRequest = onDismiss,
-    title = { Text(title) },
-    text = {
-      Column(verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs)) {
+  Dialog(onDismissRequest = onDismiss) {
+    Surface(
+      shape = RoundedCornerShape(24.dp),
+      color = semantic.glassSurfaceElevated,
+      border = BorderStroke(1.dp, semantic.glassBorder),
+      modifier = Modifier.fillMaxWidth(),
+    ) {
+      Column(
+        modifier = Modifier.padding(ParkSpaceSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+      ) {
+        Text(title, style = MaterialTheme.typography.titleLarge)
         OutlinedTextField(
           value = note,
           onValueChange = {
@@ -542,33 +565,36 @@ private fun SimpleNoteInputDialog(
           },
           label = { Text(label) },
           minLines = 3,
+          shape = RoundedCornerShape(16.dp),
           modifier = Modifier.fillMaxWidth().testTag("simple_note_input"),
         )
         if (error != null) {
           Text(error.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
-      }
-    },
-    confirmButton = {
-      ParkSpacePrimaryButton(
-        text = confirmLabel,
-        onClick = {
-          if (note.trim().length < 4) {
-            error = "Enter at least 4 characters."
-          } else {
-            onConfirm(note.trim())
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.End,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          TextButton(
+            onClick = onDismiss,
+            modifier = Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget),
+          ) {
+            Text("Cancel")
           }
-        },
-        modifier = Modifier.testTag("simple_note_confirm_button"),
-      )
-    },
-    dismissButton = {
-      TextButton(
-        onClick = onDismiss,
-        modifier = Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget),
-      ) {
-        Text("Cancel")
+          ParkSpaceLiquidGlassButton(
+            text = confirmLabel,
+            onClick = {
+              if (note.trim().length < 4) {
+                error = "Enter at least 4 characters."
+              } else {
+                onConfirm(note.trim())
+              }
+            },
+            modifier = Modifier.testTag("simple_note_confirm_button"),
+          )
+        }
       }
-    },
-  )
+    }
+  }
 }

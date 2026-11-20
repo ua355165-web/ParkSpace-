@@ -1,8 +1,12 @@
 package com.example.core.navigation
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -12,7 +16,13 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.core.common.UiState
 import com.example.core.config.UserRole
+import com.example.core.designsystem.components.CustomerBottomTab
+import com.example.core.designsystem.components.HostBottomTab
+import com.example.core.designsystem.components.ParkSpaceCustomerBottomBar
+import com.example.core.designsystem.components.ParkSpaceHostBottomBar
+import com.example.core.designsystem.components.ParkSpaceStateContainer
 import com.example.core.di.ParkSpaceAppContainer
+import com.example.ui.theme.ParkSpaceSpacing
 import com.example.feature.auth.DemoAuthViewModel
 import com.example.feature.auth.ui.DemoAuthScreen
 import com.example.feature.booking.BookingCheckoutViewModel
@@ -53,6 +63,7 @@ fun ParkSpaceNavHost(
   isDarkTheme: Boolean,
   onToggleTheme: () -> Unit,
   navController: NavHostController = rememberNavController(),
+  discoveryMapContentOverride: (@Composable (com.example.feature.discovery.DiscoveryScreenData) -> Unit)? = null,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val sessionState by viewModel.sessionState.collectAsStateWithLifecycle()
@@ -71,6 +82,9 @@ fun ParkSpaceNavHost(
   val disputesViewModel: DisputesViewModel =
     viewModel(factory = DisputesViewModel.Factory(appContainer))
 
+  val hostViewModel: HostDashboardViewModel =
+    viewModel(factory = HostDashboardViewModel.Factory(appContainer))
+
   fun navigateGuarded(destination: ParkSpaceRoute) {
     when (val decision = ParkSpaceNavGuard.evaluateAccess(destination, sessionState)) {
       is NavGuardResult.Allowed -> navController.navigate(destination)
@@ -82,6 +96,88 @@ fun ParkSpaceNavHost(
           )
         )
     }
+  }
+
+  val unreadChatsCount = (uiState as? UiState.Success)?.data?.unreadChatsCount ?: 0
+
+  @Composable
+  fun CustomerBottomNavBar(selectedTab: CustomerBottomTab?) {
+    ParkSpaceCustomerBottomBar(
+      selectedTab = selectedTab,
+      unreadMessagesCount = unreadChatsCount,
+      onSelectTab = { tab ->
+        if (tab == selectedTab) return@ParkSpaceCustomerBottomBar
+        val destination =
+          when (tab) {
+            CustomerBottomTab.DISCOVER -> {
+              val city =
+                (uiState as? UiState.Success)?.data?.session?.selectedCity
+                  ?: sessionState.selectedCity
+              discoveryViewModel.onSelectCity(city)
+              ParkSpaceRoute.CustomerDiscovery
+            }
+            CustomerBottomTab.BOOKINGS -> {
+              bookingHistoryViewModel.refreshExpiredBookings()
+              ParkSpaceRoute.CustomerBookings
+            }
+            CustomerBottomTab.MESSAGES -> ParkSpaceRoute.ChatInbox
+            CustomerBottomTab.PROFILE -> ParkSpaceRoute.SharedProfileSettings
+          }
+        when (val decision = ParkSpaceNavGuard.evaluateAccess(destination, sessionState)) {
+          is NavGuardResult.Allowed ->
+            navController.navigate(destination) {
+              popUpTo(ParkSpaceRoute.CustomerHome) { inclusive = false }
+              launchSingleTop = true
+            }
+          is NavGuardResult.Denied ->
+            navController.navigate(
+              ParkSpaceRoute.AccessDenied(
+                attemptedRouteName = destination::class.simpleName ?: "Unknown",
+                reason = decision.reason,
+              )
+            )
+        }
+      },
+    )
+  }
+
+  @Composable
+  fun HostBottomNavBar(selectedTab: HostBottomTab) {
+    val hostState by hostViewModel.uiState.collectAsStateWithLifecycle()
+    val pendingBadge =
+      hostState.bookings.count {
+        it.status == com.example.core.domain.model.BookingStatus.PENDING_PAYMENT ||
+          it.status == com.example.core.domain.model.BookingStatus.CONFIRMED ||
+          it.status == com.example.core.domain.model.BookingStatus.CHECKED_IN
+      }
+    ParkSpaceHostBottomBar(
+      selectedTab = selectedTab,
+      isDarkTheme = isDarkTheme,
+      pendingBookingsBadge = pendingBadge,
+      onSelectTab = { tab ->
+        if (tab == selectedTab) return@ParkSpaceHostBottomBar
+        val targetHostTab = tab.hostTab
+        if (targetHostTab != null) {
+          hostViewModel.selectTab(targetHostTab)
+          when (val decision = ParkSpaceNavGuard.evaluateAccess(ParkSpaceRoute.HostHome, sessionState)) {
+            is NavGuardResult.Allowed ->
+              navController.navigate(ParkSpaceRoute.HostHome) {
+                popUpTo(ParkSpaceRoute.HostHome) { inclusive = false }
+                launchSingleTop = true
+              }
+            is NavGuardResult.Denied ->
+              navController.navigate(
+                ParkSpaceRoute.AccessDenied(
+                  attemptedRouteName = "HostHome",
+                  reason = decision.reason,
+                )
+              )
+          }
+        } else {
+          navigateGuarded(ParkSpaceRoute.SharedProfileSettings)
+        }
+      },
+    )
   }
 
   NavHost(
@@ -124,6 +220,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val authViewModel: DemoAuthViewModel =
@@ -160,6 +257,22 @@ fun ParkSpaceNavHost(
                 }
               }
             },
+            isDarkTheme = isDarkTheme,
+            onToggleTheme = onToggleTheme,
+            onDualRoleBusinessAliasChange = authViewModel::onDualRoleBusinessAliasChange,
+            onActivateOrSwitchCompanionRole = {
+              authViewModel.activateOrSwitchCompanionRole { authenticatedRole ->
+                val targetHome =
+                  when (authenticatedRole) {
+                    UserRole.CUSTOMER -> ParkSpaceRoute.CustomerHome
+                    UserRole.HOST -> ParkSpaceRoute.HostHome
+                    UserRole.SUPER_ADMIN -> ParkSpaceRoute.WelcomeEntry
+                  }
+                navController.navigate(targetHome) {
+                  popUpTo(ParkSpaceRoute.WelcomeEntry) { inclusive = false }
+                }
+              }
+            },
           )
         }
       }
@@ -170,6 +283,7 @@ fun ParkSpaceNavHost(
         route = ParkSpaceRoute.CustomerHome,
         uiState = uiState,
         session = sessionState,
+        onRetrySeed = viewModel::bootstrapDemoSeed,
         onUnauthorized = { reason ->
           AccessDeniedScreen(
             attemptedRouteName = "CustomerHome",
@@ -177,6 +291,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         },
       ) { data ->
@@ -203,6 +318,32 @@ fun ParkSpaceNavHost(
           onOpenMessages = { navigateGuarded(ParkSpaceRoute.ChatInbox) },
           onOpenDisputes = { navigateGuarded(ParkSpaceRoute.DisputesCenter()) },
           onOpenNotifications = { navigateGuarded(ParkSpaceRoute.NotificationsInbox) },
+          isDarkTheme = isDarkTheme,
+          onToggleTheme = onToggleTheme,
+          sandboxFeedback = sandboxFeedback,
+          onDismissFeedback = viewModel::dismissFeedback,
+          onOpenBookingDetail = { bId ->
+            navigateGuarded(ParkSpaceRoute.BookingConfirmation(bId))
+          },
+          onOpenHostDashboardOrActivate = {
+            viewModel.switchToCompanionHostDashboard(
+              onSwitched = {
+                navController.navigate(ParkSpaceRoute.HostHome) {
+                  popUpTo(ParkSpaceRoute.WelcomeEntry) { inclusive = false }
+                }
+              },
+              onRequiresActivation = {
+                navigateGuarded(
+                  ParkSpaceRoute.DemoAuth(role = UserRole.HOST, startWithRegister = true)
+                )
+              },
+            )
+          },
+          onSignOut = {
+            viewModel.signOutDemoSandbox()
+            navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
+          },
+          bottomBar = { CustomerBottomNavBar(selectedTab = null) },
         )
       }
     }
@@ -218,6 +359,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed ->
           ParkingDiscoveryScreen(
@@ -227,6 +369,9 @@ fun ParkSpaceNavHost(
             onViewDetails = { spaceId ->
               navigateGuarded(ParkSpaceRoute.ParkingDetailPreview(spaceId))
             },
+            mapContentOverride = discoveryMapContentOverride,
+            bottomBar = { CustomerBottomNavBar(selectedTab = CustomerBottomTab.DISCOVER) },
+            isDarkTheme = isDarkTheme,
           )
       }
     }
@@ -247,6 +392,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val listing =
@@ -263,6 +409,7 @@ fun ParkSpaceNavHost(
               navigateGuarded(ParkSpaceRoute.BookingCheckout(spaceId))
             },
             reviews = reviews,
+            isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -284,6 +431,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val checkoutViewModel: BookingCheckoutViewModel =
@@ -314,6 +462,7 @@ fun ParkSpaceNavHost(
               checkoutViewModel.addVehicle(type, label, plate)
             },
             onSelectPaymentMethod = checkoutViewModel::onSelectPaymentMethod,
+            isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -335,6 +484,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val detailFlow =
@@ -370,6 +520,7 @@ fun ParkSpaceNavHost(
             onFileDispute = { bId, category, description ->
               disputesViewModel.fileDispute(bId, category, description)
             },
+            isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -387,6 +538,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val historyState by bookingHistoryViewModel.historyUiState.collectAsStateWithLifecycle()
@@ -421,6 +573,8 @@ fun ParkSpaceNavHost(
             onFileDispute = { bId, category, description ->
               disputesViewModel.fileDispute(bId, category, description)
             },
+            bottomBar = { CustomerBottomNavBar(selectedTab = CustomerBottomTab.BOOKINGS) },
+            isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -435,10 +589,9 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
-          val hostViewModel: HostDashboardViewModel =
-            viewModel(factory = HostDashboardViewModel.Factory(appContainer))
           val hostState by hostViewModel.uiState.collectAsStateWithLifecycle()
           HostDashboardScreen(
             uiState = hostState,
@@ -452,6 +605,26 @@ fun ParkSpaceNavHost(
             onOpenBookingChat = { bId -> navigateGuarded(ParkSpaceRoute.BookingChat(bId)) },
             onOpenBookingDispute = { bId ->
               navigateGuarded(ParkSpaceRoute.DisputesCenter(prefillBookingId = bId))
+            },
+            isDarkTheme = isDarkTheme,
+            onToggleTheme = onToggleTheme,
+            onOpenCustomerDashboardOrActivate = {
+              viewModel.switchToCompanionCustomerDashboard(
+                onSwitched = {
+                  navController.navigate(ParkSpaceRoute.CustomerHome) {
+                    popUpTo(ParkSpaceRoute.WelcomeEntry) { inclusive = false }
+                  }
+                },
+                onRequiresActivation = {
+                  navigateGuarded(
+                    ParkSpaceRoute.DemoAuth(role = UserRole.CUSTOMER, startWithRegister = true)
+                  )
+                },
+              )
+            },
+            onSignOut = {
+              viewModel.signOutDemoSandbox()
+              navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
           )
         }
@@ -470,6 +643,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val adminViewModel: AdminDashboardViewModel =
@@ -487,6 +661,12 @@ fun ParkSpaceNavHost(
             onUpdateDisputeStatus = adminViewModel::updateDisputeStatus,
             onUpdateCommissionRule = adminViewModel::updateCommissionRule,
             onDismissFeedback = adminViewModel::dismissFeedback,
+            isDarkTheme = isDarkTheme,
+            onToggleTheme = onToggleTheme,
+            onSignOut = {
+              viewModel.signOutDemoSandbox()
+              navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
+            },
           )
         }
       }
@@ -497,6 +677,7 @@ fun ParkSpaceNavHost(
         route = ParkSpaceRoute.SharedProfileSettings,
         uiState = uiState,
         session = sessionState,
+        onRetrySeed = viewModel::bootstrapDemoSeed,
         onUnauthorized = { reason ->
           AccessDeniedScreen(
             attemptedRouteName = "SharedProfileSettings",
@@ -504,6 +685,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         },
       ) { data ->
@@ -513,6 +695,15 @@ fun ParkSpaceNavHost(
           onSignOut = {
             viewModel.signOutDemoSandbox()
             navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
+          },
+          isDarkTheme = isDarkTheme,
+          onToggleTheme = onToggleTheme,
+          bottomBar = {
+            when (sessionState.activeRole) {
+              UserRole.CUSTOMER -> CustomerBottomNavBar(selectedTab = CustomerBottomTab.PROFILE)
+              UserRole.HOST -> HostBottomNavBar(selectedTab = HostBottomTab.PROFILE)
+              else -> Unit
+            }
           },
         )
       }
@@ -530,6 +721,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val notifViewModel: NotificationsViewModel =
@@ -547,6 +739,7 @@ fun ParkSpaceNavHost(
                 else -> Unit
               }
             },
+            isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -561,6 +754,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory(appContainer))
@@ -569,6 +763,12 @@ fun ParkSpaceNavHost(
             uiState = inboxState,
             onBack = { navController.popBackStack() },
             onOpenBookingChat = { bId -> navigateGuarded(ParkSpaceRoute.BookingChat(bId)) },
+            bottomBar = {
+              if (sessionState.activeRole == UserRole.CUSTOMER) {
+                CustomerBottomNavBar(selectedTab = CustomerBottomTab.MESSAGES)
+              }
+            },
+            isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -590,6 +790,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory(appContainer))
@@ -602,6 +803,7 @@ fun ParkSpaceNavHost(
             onBack = { navController.popBackStack() },
             onMarkThreadRead = chatViewModel::markThreadRead,
             onSendMessage = { bId, body -> chatViewModel.sendMessage(bId, body) },
+            isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -622,6 +824,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val prViewModel: CustomerPaymentsReferralsViewModel =
@@ -634,6 +837,7 @@ fun ParkSpaceNavHost(
             onBack = { navController.popBackStack() },
             onRedeemReferralCode = prViewModel::redeemReferralCode,
             onDismissFeedback = prViewModel::dismissFeedback,
+            isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -655,6 +859,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val disputesState by disputesViewModel.uiState.collectAsStateWithLifecycle()
@@ -668,6 +873,7 @@ fun ParkSpaceNavHost(
             onRespondAsHost = { dId, note -> disputesViewModel.respondAsHost(dId, note) },
             onResolveDispute = { dId, note -> disputesViewModel.resolveDispute(dId, note) },
             onDismissFeedback = disputesViewModel::dismissFeedback,
+            isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -685,6 +891,7 @@ fun ParkSpaceNavHost(
             onReturnToEntry = {
               navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
             },
+            isDarkTheme = isDarkTheme,
           )
         is NavGuardResult.Allowed -> {
           val hostReviews by reviewsViewModel.hostReviewsUiState.collectAsStateWithLifecycle()
@@ -695,6 +902,7 @@ fun ParkSpaceNavHost(
             onBack = { navController.popBackStack() },
             onReplyToReview = { rId, reply -> reviewsViewModel.replyToReview(rId, reply) },
             onDismissFeedback = reviewsViewModel::dismissFeedback,
+            isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -708,6 +916,7 @@ fun ParkSpaceNavHost(
         onReturnToEntry = {
           navController.popBackStack(ParkSpaceRoute.WelcomeEntry, inclusive = false)
         },
+        isDarkTheme = isDarkTheme,
       )
     }
   }
@@ -718,15 +927,23 @@ private fun GuardedDashboardDestination(
   route: ParkSpaceRoute,
   uiState: UiState<FoundationDashboardData>,
   session: com.example.demo.sandbox.DemoSessionState,
+  onRetrySeed: () -> Unit,
   onUnauthorized: @Composable (String) -> Unit,
   content: @Composable (FoundationDashboardData) -> Unit,
 ) {
   when (val guard = ParkSpaceNavGuard.evaluateAccess(route, session)) {
     is NavGuardResult.Denied -> onUnauthorized(guard.reason)
     is NavGuardResult.Allowed -> {
-      val data = (uiState as? UiState.Success)?.data
-      if (data != null) {
-        content(data)
+      when (uiState) {
+        is UiState.Success -> content(uiState.data)
+        else ->
+          Surface(modifier = Modifier.fillMaxSize()) {
+            ParkSpaceStateContainer(
+              state = uiState,
+              onRetry = onRetrySeed,
+              modifier = Modifier.padding(ParkSpaceSpacing.screenHorizontal),
+            ) {}
+          }
       }
     }
   }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Info
@@ -22,7 +23,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,6 +46,7 @@ enum class StatusTone {
   ERROR,
 }
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun ParkSpaceModeBanner(
   mode: AppMode,
@@ -53,23 +54,25 @@ fun ParkSpaceModeBanner(
 ) {
   val semantic = ParkSpaceThemeTokens.semantic
   Surface(
-    modifier = modifier.fillMaxWidth().testTag("mode_banner"),
-    color = semantic.demoBannerBg,
-    contentColor = semantic.demoBannerFg,
-    shape = MaterialTheme.shapes.small,
+    modifier = modifier.testTag("mode_banner"),
+    color = semantic.glassSurface,
+    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    shape = CircleShape,
+    border = BorderStroke(1.dp, semantic.glassBorder),
   ) {
     Row(
-      modifier = Modifier.padding(horizontal = ParkSpaceSpacing.sm, vertical = ParkSpaceSpacing.xs),
+      modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
       verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
+      horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
       Icon(
         imageVector = Icons.Outlined.Info,
         contentDescription = mode.displayLabel,
-        modifier = Modifier.size(18.dp),
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.size(14.dp),
       )
       Text(
-        text = mode.displayLabel.uppercase(),
+        text = "Local Demo",
         style = ParkSpaceMonoCodeStyle,
       )
     }
@@ -131,9 +134,9 @@ fun ParkSpacePrimaryButton(
     onClick = onClick,
     enabled = enabled,
     modifier = modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget),
-    shape = MaterialTheme.shapes.small,
+    shape = CircleShape,
     contentPadding =
-      PaddingValues(horizontal = ParkSpaceSpacing.md, vertical = ParkSpaceSpacing.sm),
+      PaddingValues(horizontal = ParkSpaceSpacing.lg, vertical = ParkSpaceSpacing.sm),
     colors =
       ButtonDefaults.buttonColors(
         containerColor = MaterialTheme.colorScheme.primary,
@@ -212,14 +215,13 @@ private fun ParkSpaceMessageCard(
   actionLabel: String? = null,
   onAction: (() -> Unit)? = null,
 ) {
-  Surface(
+  ParkSpaceGlassSurface(
     modifier = modifier.fillMaxWidth(),
-    shape = MaterialTheme.shapes.medium,
-    color = MaterialTheme.colorScheme.surface,
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    accentGlow = iconTint.copy(alpha = 0.2f),
+    contentPaddingDp = 24,
   ) {
     Column(
-      modifier = Modifier.padding(ParkSpaceSpacing.lg),
+      modifier = Modifier.fillMaxWidth(),
       horizontalAlignment = Alignment.CenterHorizontally,
     ) {
       Icon(
@@ -243,13 +245,10 @@ private fun ParkSpaceMessageCard(
       )
       if (actionLabel != null && onAction != null) {
         Spacer(modifier = Modifier.height(ParkSpaceSpacing.md))
-        OutlinedButton(
+        ParkSpaceLiquidGlassSecondaryButton(
+          text = actionLabel,
           onClick = onAction,
-          modifier = Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget),
-          shape = MaterialTheme.shapes.small,
-        ) {
-          Text(text = actionLabel, style = MaterialTheme.typography.labelLarge)
-        }
+        )
       }
     }
   }

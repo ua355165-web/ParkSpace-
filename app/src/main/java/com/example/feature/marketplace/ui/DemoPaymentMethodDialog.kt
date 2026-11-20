@@ -10,7 +10,10 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalance
@@ -19,7 +22,6 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -35,13 +37,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.R
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
 import com.example.core.domain.model.DemoPaymentMethod
 import com.example.feature.booking.ui.formatPkr
 import com.example.ui.theme.ParkSpaceMonoPriceStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 
 @Composable
 fun DemoPaymentMethodSelector(
@@ -51,13 +57,14 @@ fun DemoPaymentMethodSelector(
   onSelectMethod: (DemoPaymentMethod) -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val semantic = ParkSpaceThemeTokens.semantic
   Column(
     modifier = modifier.fillMaxWidth(),
     verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
   ) {
     Text(
       text = "Select Simulated Demo Payment Method",
-      style = MaterialTheme.typography.labelLarge,
+      style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
     )
     DemoPaymentMethod.entries.forEach { method ->
       val isWallet = method == DemoPaymentMethod.DEMO_CREDIT_WALLET
@@ -70,16 +77,16 @@ fun DemoPaymentMethodSelector(
             .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
             .clickable { onSelectMethod(method) }
             .testTag("payment_method_${method.name.lowercase()}"),
-        shape = MaterialTheme.shapes.small,
+        shape = RoundedCornerShape(14.dp),
         color =
-          if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-          else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+          if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+          else semantic.glassSurface,
         border =
           BorderStroke(
             width = if (selected) 1.5.dp else 1.dp,
             color =
               if (selected) MaterialTheme.colorScheme.primary
-              else MaterialTheme.colorScheme.outlineVariant,
+              else semantic.glassBorder,
           ),
       ) {
         Row(
@@ -107,7 +114,7 @@ fun DemoPaymentMethodSelector(
           Column(modifier = Modifier.weight(1f)) {
             Text(
               text = method.displayName,
-              style = MaterialTheme.typography.labelLarge,
+              style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
             )
             Text(
               text =
@@ -141,15 +148,32 @@ fun DemoPaymentMethodDialog(
   var selectedMethod by rememberSaveable { mutableStateOf(DemoPaymentMethod.JAZZCASH_DEMO) }
   val isWalletInsufficient =
     selectedMethod == DemoPaymentMethod.DEMO_CREDIT_WALLET && availableDemoCreditPkr < amountPkr
+  val semantic = ParkSpaceThemeTokens.semantic
 
-  AlertDialog(
+  Dialog(
     onDismissRequest = onDismiss,
-    title = { Text("Complete Demo Payment ($bookingCode)") },
-    text = {
+    properties = DialogProperties(usePlatformDefaultWidth = false),
+  ) {
+    Surface(
+      modifier =
+        Modifier
+          .padding(horizontal = ParkSpaceSpacing.screenHorizontal)
+          .widthIn(max = 460.dp)
+          .fillMaxWidth(),
+      shape = RoundedCornerShape(24.dp),
+      color = semantic.glassSurfaceElevated,
+      border = BorderStroke(1.dp, semantic.glassBorder),
+      tonalElevation = 6.dp,
+    ) {
       Column(
-        modifier = Modifier.verticalScroll(rememberScrollState()),
+        modifier = Modifier.padding(ParkSpaceSpacing.lg).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
       ) {
+        Text(
+          text = "Complete Demo Payment ($bookingCode)",
+          style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+        )
+
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
@@ -171,11 +195,12 @@ fun DemoPaymentMethodDialog(
         )
 
         Surface(
-          shape = MaterialTheme.shapes.small,
-          color = MaterialTheme.colorScheme.surfaceVariant,
+          shape = RoundedCornerShape(14.dp),
+          color = semantic.glassSurface,
+          border = BorderStroke(1.dp, semantic.glassBorder),
         ) {
           Row(
-            modifier = Modifier.padding(ParkSpaceSpacing.xs),
+            modifier = Modifier.padding(ParkSpaceSpacing.sm),
             horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
             verticalAlignment = Alignment.CenterVertically,
           ) {
@@ -192,24 +217,27 @@ fun DemoPaymentMethodDialog(
             )
           }
         }
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.End,
+        ) {
+          TextButton(
+            onClick = onDismiss,
+            modifier = Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget),
+          ) {
+            Text("Cancel")
+          }
+          Spacer(modifier = Modifier.width(ParkSpaceSpacing.xs))
+          ParkSpaceLiquidGlassButton(
+            text = "Pay ${formatPkr(amountPkr)} (Demo)",
+            enabled = !isWalletInsufficient,
+            leadingIcon = Icons.Outlined.CheckCircle,
+            onClick = { onConfirmPayment(selectedMethod) },
+            modifier = Modifier.testTag("dialog_confirm_demo_payment_button"),
+          )
+        }
       }
-    },
-    confirmButton = {
-      ParkSpacePrimaryButton(
-        text = "Pay ${formatPkr(amountPkr)} (Demo)",
-        enabled = !isWalletInsufficient,
-        leadingIcon = Icons.Outlined.CheckCircle,
-        onClick = { onConfirmPayment(selectedMethod) },
-        modifier = Modifier.testTag("dialog_confirm_demo_payment_button"),
-      )
-    },
-    dismissButton = {
-      TextButton(
-        onClick = onDismiss,
-        modifier = Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget),
-      ) {
-        Text("Cancel")
-      }
-    },
-  )
+    }
+  }
 }

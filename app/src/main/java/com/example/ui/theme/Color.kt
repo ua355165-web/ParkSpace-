@@ -73,6 +73,12 @@ data class ParkSpaceSemanticColors(
   val infoContainer: Color,
   val demoBannerBg: Color,
   val demoBannerFg: Color,
+  val glassSurface: Color,
+  val glassSurfaceElevated: Color,
+  val glassBorder: Color,
+  val glassSpecularRim: Color,
+  val customerGlow: Color,
+  val hostGlow: Color,
 )
 
 val LightSemanticColors =
@@ -88,6 +94,12 @@ val LightSemanticColors =
     infoContainer = InfoContainerLight,
     demoBannerBg = Brass100,
     demoBannerFg = Brass900,
+    glassSurface = Color(0xE6FFFFFF),
+    glassSurfaceElevated = Color(0xF5FFFFFF),
+    glassBorder = Color(0x330D3C34),
+    glassSpecularRim = Color(0xCCFFFFFF),
+    customerGlow = Color(0x1F19B87D),
+    hostGlow = Color(0x1F9D6B14),
   )
 
 val DarkSemanticColors =
@@ -103,4 +115,10 @@ val DarkSemanticColors =
     infoContainer = InfoContainerDark,
     demoBannerBg = Brass900,
     demoBannerFg = Brass100,
+    glassSurface = Color(0xCC15221E),
+    glassSurfaceElevated = Color(0xE01C2D27),
+    glassBorder = Color(0x472ED39A),
+    glassSpecularRim = Color(0x3D9DEFD0),
+    customerGlow = Color(0x332ED39A),
+    hostGlow = Color(0x2BE0A63A),
   )

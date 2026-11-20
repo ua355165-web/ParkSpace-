@@ -3,6 +3,7 @@ package com.example
 import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -20,13 +21,20 @@ import com.example.core.data.demo.DemoBookingRepositoryImpl
 import com.example.core.data.demo.DemoParkingRepositoryImpl
 import com.example.core.data.demo.DemoUserProfileRepositoryImpl
 import com.example.core.database.ParkSpaceDemoDatabase
+import com.example.core.domain.model.AvailabilitySchedule
 import com.example.core.domain.model.HostVerificationStatus
+import com.example.core.domain.model.ParkingAmenity
+import com.example.core.domain.model.ParkingDayOfWeek
+import com.example.core.domain.model.ParkingLocation
+import com.example.core.domain.model.ParkingSpace
+import com.example.core.domain.model.ParkingType
 import com.example.core.domain.model.VehicleType
 import com.example.core.domain.repository.BookingCreateRequest
 import com.example.core.domain.repository.BookingMutationResult
 import com.example.core.domain.repository.DemoAuthResult
 import com.example.core.domain.repository.DemoRegisterRequest
 import com.example.core.domain.repository.DemoSignInRequest
+import com.example.core.domain.repository.HostListingMutationResult
 import com.example.core.navigation.NavGuardResult
 import com.example.core.navigation.ParkSpaceNavGuard
 import com.example.core.navigation.ParkSpaceRoute
@@ -86,7 +94,7 @@ class DemoAuthRobolectricTest {
     seedInitializer = DemoSeedInitializer(database)
     userRepo = DemoUserProfileRepositoryImpl(database.userDao(), database)
     authRepo = DemoAuthRepositoryImpl(database)
-    parkingRepo = DemoParkingRepositoryImpl(database.parkingDao())
+    parkingRepo = DemoParkingRepositoryImpl(database)
     bookingRepo = DemoBookingRepositoryImpl(database)
     persistence = SharedPrefsDemoSessionPersistence(context)
   }
@@ -285,7 +293,36 @@ class DemoAuthRobolectricTest {
       assertTrue(parkingRepo.observeSpacesByHost(hostH.id).first().isEmpty())
       assertTrue(bookingRepo.observeBookingsForHost(hostH.id).first().isEmpty())
 
-      // Customer A adds own vehicle & books seeded space (M3 flow remains intact)
+      // Approve Host H and publish a real Host-created listing (empty-marketplace: no pre-seeded listings)
+      val hostEntity = database.userDao().getHostProfileOnce(hostH.id)!!
+      database.userDao().upsertHostProfile(
+        hostEntity.copy(verificationStatus = HostVerificationStatus.APPROVED)
+      )
+      val hostSpace =
+        ParkingSpace(
+          id = "host-gamma-space-01",
+          hostId = hostH.id,
+          title = "Gamma Gulberg Covered Garage",
+          description = "Private covered parking created by Host Gamma.",
+          parkingType = ParkingType.COVERED_GARAGE,
+          location = ParkingLocation(SupportedCity.LAHORE, "Gulberg III", 31.512, 74.348),
+          hourlyRatePkr = 150,
+          dailyRatePkr = 1200,
+          monthlyRatePkr = null,
+          monthlyEnabled = false,
+          totalBays = 2,
+          availableBays = 2,
+          supportedVehicles = setOf(VehicleType.CAR, VehicleType.BIKE),
+          amenities = setOf(ParkingAmenity.CCTV, ParkingAmenity.COVERED),
+          schedule = AvailabilitySchedule(ParkingDayOfWeek.entries.toSet(), 0, 23, true),
+          isApproved = false,
+          isDemoListing = true,
+        )
+      val listingRes = parkingRepo.createOrUpdateListing(hostH.id, hostSpace, publishImmediately = true)
+      assertTrue(listingRes is HostListingMutationResult.Success)
+      val createdSpaceId = (listingRes as HostListingMutationResult.Success).space.id
+
+      // Customer A adds own vehicle & books Host H's real space (M3 flow remains intact)
       val addedVehicle =
         userRepo
           .addVehicleForUser(
@@ -309,7 +346,7 @@ class DemoAuthRobolectricTest {
       val booked =
         bookingRepo.createBookingWithAvailabilityCheck(
           BookingCreateRequest(
-            spaceId = "demo-lhr-01",
+            spaceId = createdSpaceId,
             customerId = custA.id,
             vehicleId = addedVehicle.id,
             bookingType = BookingType.HOURLY,
@@ -320,31 +357,32 @@ class DemoAuthRobolectricTest {
         )
       assertTrue(booked is BookingMutationResult.Success)
 
-      // Customer B must still see ZERO vehicles and ZERO bookings
+      // Customer B must still see ZERO vehicles and ZERO bookings; Host H sees its own listing & booking
       assertEquals(1, userRepo.observeVehiclesForUser(custA.id).first().size)
       assertEquals(1, bookingRepo.observeBookingsForCustomer(custA.id).first().size)
+      assertEquals(1, parkingRepo.observeSpacesByHost(hostH.id).first().size)
+      assertEquals(1, bookingRepo.observeBookingsForHost(hostH.id).first().size)
       assertTrue(userRepo.observeVehiclesForUser(custB.id).first().isEmpty())
       assertTrue(bookingRepo.observeBookingsForCustomer(custB.id).first().isEmpty())
     }
 
   @Test
-  fun `welcome entry hides preset users and shows customer and host sign in or register options`() {
+  fun `welcome entry hides preset users, exposes customer host glass cards, and keeps settings and admin gate inside menu`() {
     runBlocking(Dispatchers.IO) { seedInitializer.seedIfNeeded() }
-    val spaces = runBlocking(Dispatchers.IO) {
-      parkingRepo.observeApprovedSpacesByCity(SupportedCity.LAHORE).first()
-    }
+    val openedRoles = mutableListOf<UserRole>()
+    var darkThemeState = false
 
     composeRule.setContent {
-      ParkSpaceTheme {
+      ParkSpaceTheme(darkTheme = darkThemeState) {
         WelcomeEntryScreen(
           uiState =
             UiState.Success(
               FoundationDashboardData(
                 session = DemoSessionState(),
-                approvedSpacesInSelectedCity = spaces,
-                allSpacesCount = 12,
-                approvedSpacesCount = 11,
-                pendingSpacesCount = 1,
+                approvedSpacesInSelectedCity = emptyList(),
+                allSpacesCount = 0,
+                approvedSpacesCount = 0,
+                pendingSpacesCount = 0,
                 activeCustomerProfile = null,
                 activeUserVehicles = emptyList(),
                 activeHostProfile = null,
@@ -353,10 +391,10 @@ class DemoAuthRobolectricTest {
               )
             ),
           sandboxFeedback = null,
-          isDarkTheme = false,
-          onToggleTheme = {},
+          isDarkTheme = darkThemeState,
+          onToggleTheme = { darkThemeState = !darkThemeState },
           onSelectCity = {},
-          onOpenAuth = { _, _ -> },
+          onOpenAuth = { role, _ -> openedRoles += role },
           onSignOut = {},
           onUnlockPrivateAdmin = {},
           onNavigateToRoleHome = {},
@@ -368,14 +406,118 @@ class DemoAuthRobolectricTest {
     }
 
     composeRule.waitForIdle()
-    composeRule.onNodeWithTag("customer_sign_in_button").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithTag("customer_register_button").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithTag("host_sign_in_button").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithTag("host_register_button").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithTag("private_admin_gate_button").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("theme_toggle_button").assertIsDisplayed()
+    composeRule.onNodeWithTag("global_menu_button").assertIsDisplayed()
+    composeRule.onNodeWithTag("customer_entry_card").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("host_entry_card").performScrollTo().assertIsDisplayed()
+
+    // Single header theme toggle flips global theme state directly
+    composeRule.onNodeWithTag("theme_toggle_button").performClick()
+    assertTrue(darkThemeState)
+
+    // Tapping Customer & Host cards routes directly to respective auth flows
+    composeRule.onNodeWithTag("customer_entry_card").performClick()
+    composeRule.onNodeWithTag("host_entry_card").performClick()
+    assertEquals(listOf(UserRole.CUSTOMER, UserRole.HOST), openedRoles)
+
+    // Settings and Private Admin Gate live inside the Menu (without duplicate Dark Appearance item)
+    composeRule.onNodeWithTag("global_menu_button").performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("open_settings_button").assertIsDisplayed()
+    composeRule.onNodeWithTag("private_admin_gate_button").assertIsDisplayed()
+    assertTrue(composeRule.onAllNodesWithTag("menu_theme_toggle_item").fetchSemanticsNodes().isEmpty())
+
+    // Clicking Settings in Menu while signed out opens Guest Preferences Dialog without duplicate dark switch
+    composeRule.onNodeWithTag("open_settings_button").performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("guest_settings_dialog").assertIsDisplayed()
+    assertTrue(composeRule.onAllNodesWithTag("guest_settings_dark_switch").fetchSemanticsNodes().isEmpty())
+    composeRule.onNodeWithTag("guest_settings_close_button").performClick()
+
     assertTrue(composeRule.onAllNodesWithText("Ayesha", substring = true).fetchSemanticsNodes().isEmpty())
     assertTrue(composeRule.onAllNodesWithText("Usman", substring = true).fetchSemanticsNodes().isEmpty())
   }
+
+  @Test
+  fun `theme preference persists dark and light selection across store restarts`() {
+    context.getSharedPreferences(
+      com.example.ui.theme.SharedPrefsThemePreferenceStore.PREFS_NAME,
+      Context.MODE_PRIVATE,
+    ).edit().clear().commit()
+
+    val firstStore = com.example.ui.theme.SharedPrefsThemePreferenceStore(context)
+    assertNull(firstStore.darkThemeOverride.value)
+
+    firstStore.setDarkTheme(true)
+    assertEquals(true, firstStore.darkThemeOverride.value)
+
+    val restartedStore = com.example.ui.theme.SharedPrefsThemePreferenceStore(context)
+    assertEquals(true, restartedStore.darkThemeOverride.value)
+
+    restartedStore.toggleTheme(currentEffectiveDark = true)
+    val thirdStore = com.example.ui.theme.SharedPrefsThemePreferenceStore(context)
+    assertEquals(false, thirdStore.darkThemeOverride.value)
+  }
+
+  @Test
+  fun `dual role activation creates companion host role in pending review and switches seamlessly`() =
+    runBlocking(Dispatchers.IO) {
+      seedInitializer.seedIfNeeded()
+      val sessionManager = DemoSessionManager(userRepo, persistence)
+
+      val cust =
+        (authRepo.registerLocalAccount(
+          DemoRegisterRequest(
+            role = UserRole.CUSTOMER,
+            fullName = "Bilal Dual",
+            email = "bilal.dual@mailinator.com",
+            password = "password123",
+            confirmPassword = "password123",
+            preferredCity = SupportedCity.ISLAMABAD,
+          )
+        ) as DemoAuthResult.Success).user
+      sessionManager.activateAuthenticatedUser(cust)
+
+      // No companion Host exists yet for same email
+      assertFalse(authRepo.hasAccountForEmailAndRole("bilal.dual@mailinator.com", UserRole.HOST))
+
+      // Activate Host companion role from signed-in Customer
+      val hostActivation =
+        authRepo.activateOrSwitchCompanionRole(
+          currentSignedInUserId = cust.id,
+          targetRole = UserRole.HOST,
+          businessAlias = "Bilal F-7 Bays",
+        )
+      assertTrue(hostActivation is DemoAuthResult.Success)
+      val hostUser = (hostActivation as DemoAuthResult.Success).user
+      assertEquals(UserRole.HOST, hostUser.role)
+      assertNotEquals(cust.id, hostUser.id)
+      assertEquals("bilal.dual@mailinator.com", hostUser.emailMasked)
+
+      val hostProfile = userRepo.observeHostProfile(hostUser.id).first()!!
+      assertEquals(HostVerificationStatus.PENDING_REVIEW, hostProfile.verificationStatus)
+      assertFalse(hostProfile.verificationStatus.canPublishListings)
+      assertEquals("Bilal F-7 Bays", hostProfile.displayBusinessAlias)
+
+      // Activate session as Host and switch cleanly back to existing Customer
+      sessionManager.activateAuthenticatedUser(hostUser)
+      assertTrue(authRepo.hasAccountForEmailAndRole("bilal.dual@mailinator.com", UserRole.CUSTOMER))
+      val backToCust =
+        authRepo.activateOrSwitchCompanionRole(
+          currentSignedInUserId = hostUser.id,
+          targetRole = UserRole.CUSTOMER,
+        )
+      assertTrue(backToCust is DemoAuthResult.Success)
+      assertEquals(cust.id, (backToCust as DemoAuthResult.Success).user.id)
+
+      // Security check: Dual-Role must always reject SUPER_ADMIN
+      val blockedAdmin =
+        authRepo.activateOrSwitchCompanionRole(
+          currentSignedInUserId = cust.id,
+          targetRole = UserRole.SUPER_ADMIN,
+        )
+      assertTrue(blockedAdmin is DemoAuthResult.Rejected)
+    }
 
   @Test
   fun `demo auth screen registers new customer end to end`() {

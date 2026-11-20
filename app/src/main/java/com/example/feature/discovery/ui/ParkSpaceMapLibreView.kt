@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CloudOff
@@ -31,7 +33,6 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,10 +57,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.core.config.AppEnvironment
 import com.example.core.config.SupportedCity
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSecondaryButton
 import com.example.feature.discovery.domain.model.MapRenderStatus
 import com.example.feature.discovery.domain.model.PublicParkingMarker
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -288,6 +291,8 @@ fun ParkSpaceMapLibreView(
       }
     }
 
+    val semantic = ParkSpaceThemeTokens.semantic
+
     // Loading Style Overlay
     if (mapRenderStatus is MapRenderStatus.LoadingStyle) {
       Surface(
@@ -295,8 +300,9 @@ fun ParkSpaceMapLibreView(
           Modifier.align(Alignment.TopStart)
             .padding(ParkSpaceSpacing.sm)
             .testTag("map_loading_badge"),
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        shape = CircleShape,
+        color = semantic.glassSurfaceElevated,
+        border = BorderStroke(1.dp, semantic.glassBorder),
         tonalElevation = 2.dp,
       ) {
         Row(
@@ -321,9 +327,9 @@ fun ParkSpaceMapLibreView(
       ) {
         Surface(
           modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth().testTag("map_error_overlay"),
-          shape = MaterialTheme.shapes.medium,
-          color = MaterialTheme.colorScheme.surface,
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+          shape = RoundedCornerShape(22.dp),
+          color = semantic.glassSurfaceElevated,
+          border = BorderStroke(1.dp, semantic.glassBorder),
           tonalElevation = 3.dp,
         ) {
           Column(
@@ -352,20 +358,13 @@ fun ParkSpaceMapLibreView(
               modifier = Modifier.fillMaxWidth(),
               horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
             ) {
-              OutlinedButton(
+              ParkSpaceLiquidGlassSecondaryButton(
+                text = "Retry",
+                leadingIcon = Icons.Outlined.Refresh,
                 onClick = onRetryMap,
                 modifier = Modifier.weight(1f).height(ParkSpaceSpacing.minTouchTarget),
-                shape = MaterialTheme.shapes.small,
-              ) {
-                Icon(
-                  imageVector = Icons.Outlined.Refresh,
-                  contentDescription = null,
-                  modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.size(ParkSpaceSpacing.xxs))
-                Text("Retry")
-              }
-              ParkSpacePrimaryButton(
+              )
+              ParkSpaceLiquidGlassButton(
                 text = "List View",
                 onClick = onSwitchToList,
                 leadingIcon = Icons.Outlined.ViewList,

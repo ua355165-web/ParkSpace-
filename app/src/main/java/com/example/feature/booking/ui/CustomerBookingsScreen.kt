@@ -15,21 +15,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.ReceiptLong
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -45,12 +46,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.core.common.UiState
-import com.example.core.config.AppEnvironment
-import com.example.core.designsystem.components.ParkSpaceModeBanner
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceAtmosphericBackground
+import com.example.core.designsystem.components.ParkSpaceCompactDemoPill
+import com.example.core.designsystem.components.ParkSpaceGlassIconButton
+import com.example.core.designsystem.components.ParkSpaceGlassSurface
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSecondaryButton
 import com.example.core.designsystem.components.ParkSpaceStateContainer
 import com.example.core.designsystem.components.ParkSpaceStatusPill
 import com.example.core.domain.model.BookingStatus
@@ -65,6 +73,7 @@ import com.example.feature.marketplace.ui.SubmitVerifiedReviewDialog
 import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceMonoPriceStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,74 +94,85 @@ fun CustomerBookingsScreen(
   onOpenChat: ((String) -> Unit)? = null,
   onSubmitReview: ((bookingId: String, rating: Int, comment: String) -> Unit)? = null,
   onFileDispute: ((bookingId: String, category: DisputeCategory, description: String) -> Unit)? = null,
+  bottomBar: @Composable () -> Unit = {},
+  isDarkTheme: Boolean = false,
 ) {
   var pendingCancelItem by remember { mutableStateOf<CustomerBookingDisplayItem?>(null) }
   var pendingPayItem by remember { mutableStateOf<CustomerBookingDisplayItem?>(null) }
   var pendingReviewItem by remember { mutableStateOf<CustomerBookingDisplayItem?>(null) }
   var pendingDisputeItem by remember { mutableStateOf<CustomerBookingDisplayItem?>(null) }
+  val semantic = ParkSpaceThemeTokens.semantic
 
-  Scaffold(
-    modifier = modifier.fillMaxSize(),
-    containerColor = MaterialTheme.colorScheme.background,
-    contentWindowInsets = WindowInsets.safeDrawing,
-    topBar = {
-      TopAppBar(
-        title = { Text("My Demo Bookings", style = MaterialTheme.typography.titleLarge) },
-        navigationIcon = {
-          IconButton(
-            onClick = onBack,
-            modifier =
-              Modifier.size(ParkSpaceSpacing.minTouchTarget).testTag("bookings_back_button"),
-          ) {
-            Icon(
-              imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-              contentDescription = "Back",
+  ParkSpaceAtmosphericBackground(isDarkTheme = isDarkTheme, modifier = modifier) {
+    Scaffold(
+      modifier = Modifier.fillMaxSize(),
+      containerColor = Color.Transparent,
+      contentWindowInsets = WindowInsets.safeDrawing,
+      bottomBar = bottomBar,
+      topBar = {
+        TopAppBar(
+          title = {
+            Text(
+              text = "My Bookings",
+              style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             )
-          }
-        },
-        colors =
-          TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-          ),
-      )
-    },
-  ) { innerPadding ->
-    Box(
-      modifier = Modifier.fillMaxSize().padding(innerPadding),
-      contentAlignment = Alignment.TopCenter,
-    ) {
-      Column(
-        modifier = Modifier.widthIn(max = ParkSpaceSpacing.maxReadableWidth).fillMaxSize(),
+          },
+          navigationIcon = {
+            ParkSpaceGlassIconButton(
+              onClick = onBack,
+              icon = Icons.AutoMirrored.Outlined.ArrowBack,
+              contentDescription = "Back",
+              testTag = "bookings_back_button",
+              modifier = Modifier.padding(start = ParkSpaceSpacing.xs),
+            )
+          },
+          actions = {
+            ParkSpaceCompactDemoPill(
+              modifier = Modifier.padding(end = ParkSpaceSpacing.xs).testTag("mode_banner"),
+            )
+          },
+          colors =
+            TopAppBarDefaults.topAppBarColors(
+              containerColor = Color.Transparent,
+            ),
+        )
+      },
+    ) { innerPadding ->
+      Box(
+        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        contentAlignment = Alignment.TopCenter,
       ) {
         Column(
-          modifier =
-            Modifier.fillMaxWidth().padding(horizontal = ParkSpaceSpacing.screenHorizontal),
-          verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
+          modifier = Modifier.widthIn(max = ParkSpaceSpacing.maxReadableWidth).fillMaxSize(),
         ) {
-          ParkSpaceModeBanner(mode = AppEnvironment.currentMode)
-
           if (actionFeedback != null) {
-            Surface(
-              modifier = Modifier.fillMaxWidth().testTag("bookings_feedback_banner"),
-              shape = MaterialTheme.shapes.small,
-              color = MaterialTheme.colorScheme.primaryContainer,
+            Column(
+              modifier =
+                Modifier.fillMaxWidth().padding(horizontal = ParkSpaceSpacing.screenHorizontal),
+              verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
             ) {
-              Row(
-                modifier = Modifier.padding(ParkSpaceSpacing.sm),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+              Surface(
+                modifier = Modifier.fillMaxWidth().testTag("bookings_feedback_banner"),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                border = BorderStroke(1.dp, semantic.glassBorder),
               ) {
-                Text(
-                  text = actionFeedback,
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onPrimaryContainer,
-                  modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = onDismissFeedback) { Text("OK") }
+                Row(
+                  modifier = Modifier.padding(ParkSpaceSpacing.sm),
+                  horizontalArrangement = Arrangement.SpaceBetween,
+                  verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  Text(
+                    text = actionFeedback,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.weight(1f),
+                  )
+                  TextButton(onClick = onDismissFeedback) { Text("OK") }
+                }
               }
             }
           }
-        }
 
         ParkSpaceStateContainer(
           state = uiState,
@@ -176,6 +196,7 @@ fun CustomerBookingsScreen(
                   selected = data.selectedTab == tab,
                   onClick = { onSelectTab(tab) },
                   label = { Text("${tab.label} ($count)") },
+                  shape = CircleShape,
                   modifier =
                     Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
                       .testTag("bookings_tab_${tab.name.lowercase()}"),
@@ -199,14 +220,13 @@ fun CustomerBookingsScreen(
                 modifier = Modifier.fillMaxSize().padding(ParkSpaceSpacing.lg),
                 contentAlignment = Alignment.Center,
               ) {
-                Surface(
-                  modifier = Modifier.fillMaxWidth().testTag("bookings_empty_state"),
-                  shape = MaterialTheme.shapes.medium,
-                  color = MaterialTheme.colorScheme.surface,
-                  border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                ParkSpaceGlassSurface(
+                  modifier = Modifier.testTag("bookings_empty_state"),
+                  accentGlow = semantic.customerGlow,
+                  contentPaddingDp = 22,
                 ) {
                   Column(
-                    modifier = Modifier.padding(ParkSpaceSpacing.lg),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
                   ) {
@@ -220,14 +240,14 @@ fun CustomerBookingsScreen(
                       text =
                         if (!hasAnyBookingAtAll) "No bookings yet."
                         else "No ${data.selectedTab.label} bookings yet.",
-                      style = MaterialTheme.typography.titleMedium,
+                      style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     )
                     Text(
                       text = "Explore Host-created parking spaces across Lahore, Islamabad, Faisalabad, and Karachi.",
                       style = MaterialTheme.typography.bodySmall,
                       color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    ParkSpacePrimaryButton(
+                    ParkSpaceLiquidGlassButton(
                       text = if (!hasAnyBookingAtAll) "Make Your First Booking" else "Explore Parking",
                       onClick = onOpenDiscovery,
                       leadingIcon = Icons.Outlined.DirectionsCar,
@@ -325,11 +345,29 @@ fun CustomerBookingsScreen(
       val targetCancel = pendingCancelItem
       if (targetCancel != null && targetCancel.cancellationQuote != null) {
         val quote = targetCancel.cancellationQuote
-        AlertDialog(
+        Dialog(
           onDismissRequest = { pendingCancelItem = null },
-          title = { Text("Cancel ${targetCancel.booking.bookingCode}?") },
-          text = {
-            Column(verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs)) {
+          properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+          Surface(
+            modifier =
+              Modifier
+                .padding(horizontal = ParkSpaceSpacing.screenHorizontal)
+                .widthIn(max = 460.dp)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            color = semantic.glassSurfaceElevated,
+            border = BorderStroke(1.dp, semantic.glassBorder),
+            tonalElevation = 6.dp,
+          ) {
+            Column(
+              modifier = Modifier.padding(ParkSpaceSpacing.lg),
+              verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+            ) {
+              Text(
+                text = "Cancel ${targetCancel.booking.bookingCode}?",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+              )
               Text(quote.policyRuleExplanation, style = MaterialTheme.typography.bodyMedium)
               Text(
                 text = "Calculated Demo Refund: ${formatPkr(quote.refundAmountPkr)} (${quote.refundPercentageLabel})",
@@ -341,26 +379,37 @@ fun CustomerBookingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+              ) {
+                TextButton(
+                  onClick = { pendingCancelItem = null },
+                  modifier = Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget),
+                ) {
+                  Text("Keep")
+                }
+                Spacer(modifier = Modifier.width(ParkSpaceSpacing.xs))
+                TextButton(
+                  onClick = {
+                    val id = targetCancel.booking.id
+                    pendingCancelItem = null
+                    onCancelBooking(id)
+                  },
+                  modifier =
+                    Modifier
+                      .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
+                      .testTag("history_confirm_cancel_button"),
+                ) {
+                  Text("Confirm Cancellation", color = MaterialTheme.colorScheme.error)
+                }
+              }
             }
-          },
-          confirmButton = {
-            TextButton(
-              onClick = {
-                val id = targetCancel.booking.id
-                pendingCancelItem = null
-                onCancelBooking(id)
-              },
-              modifier = Modifier.testTag("history_confirm_cancel_button"),
-            ) {
-              Text("Confirm Cancellation", color = MaterialTheme.colorScheme.error)
-            }
-          },
-          dismissButton = {
-            TextButton(onClick = { pendingCancelItem = null }) { Text("Keep") }
-          },
-        )
+          }
+        }
       }
     }
+  }
   }
 }
 
@@ -377,14 +426,15 @@ private fun BookingHistoryItemCard(
   onReportIssue: (() -> Unit)? = null,
 ) {
   val booking = item.booking
+  val semantic = ParkSpaceThemeTokens.semantic
   Surface(
     modifier =
       Modifier.fillMaxWidth()
         .clickable(onClick = onOpenDetail)
         .testTag("booking_history_card_${booking.id}"),
-    shape = MaterialTheme.shapes.medium,
-    color = MaterialTheme.colorScheme.surface,
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    shape = RoundedCornerShape(22.dp),
+    color = semantic.glassSurfaceElevated,
+    border = BorderStroke(1.dp, semantic.glassBorder),
   ) {
     Column(
       modifier = Modifier.padding(ParkSpaceSpacing.cardPadding),
@@ -449,33 +499,29 @@ private fun BookingHistoryItemCard(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
       ) {
-        OutlinedButton(
+        ParkSpaceLiquidGlassSecondaryButton(
+          text = if (booking.hasActiveGateAccess()) "Entry Pass" else "Details",
           onClick = onOpenDetail,
-          modifier =
-            Modifier.weight(1f)
-              .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
-              .testTag("open_booking_detail_${booking.id}"),
-        ) {
-          Text(if (booking.hasActiveGateAccess()) "Entry Pass" else "Details")
-        }
+          modifier = Modifier.weight(1f).testTag("open_booking_detail_${booking.id}"),
+        )
 
         when (booking.status) {
           BookingStatus.PENDING_PAYMENT -> {
-            ParkSpacePrimaryButton(
+            ParkSpaceLiquidGlassButton(
               text = "Pay Demo",
               onClick = onConfirmPendingPayment,
               modifier = Modifier.weight(1f).testTag("history_pay_${booking.id}"),
             )
           }
           BookingStatus.CONFIRMED -> {
-            ParkSpacePrimaryButton(
+            ParkSpaceLiquidGlassButton(
               text = "Check In",
               onClick = onCheckIn,
               modifier = Modifier.weight(1f).testTag("history_check_in_${booking.id}"),
             )
           }
           BookingStatus.CHECKED_IN -> {
-            ParkSpacePrimaryButton(
+            ParkSpaceLiquidGlassButton(
               text = "Check Out",
               onClick = onCheckOut,
               modifier = Modifier.weight(1f).testTag("history_check_out_${booking.id}"),
@@ -487,6 +533,7 @@ private fun BookingHistoryItemCard(
         if (item.cancellationQuote?.isEligibleToCancel == true) {
           OutlinedButton(
             onClick = onRequestCancel,
+            shape = CircleShape,
             modifier =
               Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
                 .testTag("history_cancel_${booking.id}"),

@@ -14,8 +14,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -30,12 +33,10 @@ import androidx.compose.material.icons.outlined.RateReview
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.ReportProblem
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -51,13 +52,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.core.common.UiState
-import com.example.core.config.AppEnvironment
-import com.example.core.designsystem.components.ParkSpaceModeBanner
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceAtmosphericBackground
+import com.example.core.designsystem.components.ParkSpaceCompactDemoPill
+import com.example.core.designsystem.components.ParkSpaceGlassIconButton
+import com.example.core.designsystem.components.ParkSpaceGlassSurface
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSecondaryButton
 import com.example.core.designsystem.components.ParkSpaceStateContainer
 import com.example.core.designsystem.components.ParkSpaceStatusPill
 import com.example.core.designsystem.components.StatusTone
@@ -71,6 +78,7 @@ import com.example.feature.marketplace.ui.SubmitVerifiedReviewDialog
 import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceMonoPriceStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,92 +98,96 @@ fun BookingConfirmationScreen(
   onOpenChat: ((String) -> Unit)? = null,
   onSubmitReview: ((bookingId: String, rating: Int, comment: String) -> Unit)? = null,
   onFileDispute: ((bookingId: String, category: DisputeCategory, description: String) -> Unit)? = null,
+  isDarkTheme: Boolean = false,
 ) {
   var showCancelDialog by rememberSaveable { mutableStateOf(false) }
   var showPaymentMethodDialog by rememberSaveable { mutableStateOf(false) }
   var showReviewDialog by rememberSaveable { mutableStateOf(false) }
   var showDisputeDialog by rememberSaveable { mutableStateOf(false) }
+  val semantic = ParkSpaceThemeTokens.semantic
 
-  Scaffold(
-    modifier = modifier.fillMaxSize(),
-    containerColor = MaterialTheme.colorScheme.background,
-    contentWindowInsets = WindowInsets.safeDrawing,
-    topBar = {
-      TopAppBar(
-        title = { Text("Booking Pass & Summary", style = MaterialTheme.typography.titleLarge) },
-        navigationIcon = {
-          IconButton(
-            onClick = onBack,
-            modifier =
-              Modifier.size(ParkSpaceSpacing.minTouchTarget).testTag("confirmation_back_button"),
-          ) {
-            Icon(
-              imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-              contentDescription = "Back",
+  ParkSpaceAtmosphericBackground(isDarkTheme = isDarkTheme, modifier = modifier) {
+    Scaffold(
+      modifier = Modifier.fillMaxSize(),
+      containerColor = Color.Transparent,
+      contentWindowInsets = WindowInsets.safeDrawing,
+      topBar = {
+        TopAppBar(
+          title = {
+            Text(
+              text = "Booking Pass & Summary",
+              style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             )
-          }
-        },
-        colors =
-          TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-          ),
-      )
-    },
-  ) { innerPadding ->
-    Box(
-      modifier = Modifier.fillMaxSize().padding(innerPadding),
-      contentAlignment = Alignment.TopCenter,
-    ) {
-      ParkSpaceStateContainer(
-        state = uiState,
-        modifier = Modifier.widthIn(max = ParkSpaceSpacing.maxReadableWidth).fillMaxSize(),
-      ) { item ->
-        val booking = item.booking
+          },
+          navigationIcon = {
+            ParkSpaceGlassIconButton(
+              onClick = onBack,
+              icon = Icons.AutoMirrored.Outlined.ArrowBack,
+              contentDescription = "Back",
+              testTag = "confirmation_back_button",
+              modifier = Modifier.padding(start = ParkSpaceSpacing.xs),
+            )
+          },
+          actions = {
+            ParkSpaceCompactDemoPill(
+              modifier = Modifier.padding(end = ParkSpaceSpacing.xs).testTag("mode_banner"),
+            )
+          },
+          colors =
+            TopAppBarDefaults.topAppBarColors(
+              containerColor = Color.Transparent,
+            ),
+        )
+      },
+    ) { innerPadding ->
+      Box(
+        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        contentAlignment = Alignment.TopCenter,
+      ) {
+        ParkSpaceStateContainer(
+          state = uiState,
+          modifier = Modifier.widthIn(max = ParkSpaceSpacing.maxReadableWidth).fillMaxSize(),
+        ) { item ->
+          val booking = item.booking
 
-        Column(
-          modifier =
-            Modifier.fillMaxSize()
-              .verticalScroll(rememberScrollState())
-              .padding(
-                horizontal = ParkSpaceSpacing.screenHorizontal,
-                vertical = ParkSpaceSpacing.md,
-              ),
-          verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.md),
-        ) {
-          ParkSpaceModeBanner(mode = AppEnvironment.currentMode)
-
-          if (actionFeedback != null) {
-            Surface(
-              modifier = Modifier.fillMaxWidth().testTag("confirmation_feedback_banner"),
-              shape = MaterialTheme.shapes.small,
-              color = MaterialTheme.colorScheme.primaryContainer,
-            ) {
-              Row(
-                modifier = Modifier.padding(ParkSpaceSpacing.sm),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+          Column(
+            modifier =
+              Modifier.fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                  horizontal = ParkSpaceSpacing.screenHorizontal,
+                  vertical = ParkSpaceSpacing.md,
+                ),
+            verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.md),
+          ) {
+            if (actionFeedback != null) {
+              Surface(
+                modifier = Modifier.fillMaxWidth().testTag("confirmation_feedback_banner"),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                border = BorderStroke(1.dp, semantic.glassBorder),
               ) {
-                Text(
-                  text = actionFeedback,
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onPrimaryContainer,
-                  modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = onDismissFeedback) { Text("OK") }
+                Row(
+                  modifier = Modifier.padding(ParkSpaceSpacing.sm),
+                  horizontalArrangement = Arrangement.SpaceBetween,
+                  verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  Text(
+                    text = actionFeedback,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.weight(1f),
+                  )
+                  TextButton(onClick = onDismissFeedback) { Text("OK") }
+                }
               }
             }
-          }
 
-          // Hero Booking Reference & Status Card
-          Surface(
-            modifier = Modifier.fillMaxWidth().testTag("booking_confirmation_hero_card"),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-          ) {
-            Column(
-              modifier = Modifier.padding(ParkSpaceSpacing.cardPadding),
-              verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
+            // Hero Booking Reference & Status Card
+            ParkSpaceGlassSurface(
+              modifier = Modifier.testTag("booking_confirmation_hero_card"),
+              accentGlow = semantic.customerGlow,
+              contentPaddingDp = 18,
             ) {
               Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -235,18 +247,12 @@ fun BookingConfirmationScreen(
                 )
               }
             }
-          }
 
-          // Simulated Entry / Exit & Gate Security Card
-          Surface(
-            modifier = Modifier.fillMaxWidth().testTag("booking_gate_access_card"),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-          ) {
-            Column(
-              modifier = Modifier.padding(ParkSpaceSpacing.cardPadding),
-              verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+            // Simulated Entry / Exit & Gate Security Card
+            ParkSpaceGlassSurface(
+              modifier = Modifier.testTag("booking_gate_access_card"),
+              accentGlow = semantic.customerGlow,
+              contentPaddingDp = 18,
             ) {
               if (booking.hasActiveGateAccess() && item.simulatedPin != null) {
                 Row(
@@ -344,7 +350,7 @@ fun BookingConfirmationScreen(
                 // Check-in / Check-out Controls
                 when (booking.status) {
                   BookingStatus.CONFIRMED -> {
-                    ParkSpacePrimaryButton(
+                    ParkSpaceLiquidGlassButton(
                       text = "Simulate Demo Check-In",
                       onClick = { onCheckIn(booking.id) },
                       leadingIcon = Icons.Outlined.Login,
@@ -359,7 +365,7 @@ fun BookingConfirmationScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                       )
                     }
-                    ParkSpacePrimaryButton(
+                    ParkSpaceLiquidGlassButton(
                       text = "Simulate Demo Check-Out",
                       onClick = { onCheckOut(booking.id) },
                       leadingIcon = Icons.Outlined.Logout,
@@ -433,7 +439,7 @@ fun BookingConfirmationScreen(
                 }
 
                 if (booking.status == BookingStatus.PENDING_PAYMENT) {
-                  ParkSpacePrimaryButton(
+                  ParkSpaceLiquidGlassButton(
                     text = "Complete Demo Payment (${formatPkr(booking.totalAmountPkr)})",
                     onClick = {
                       if (onConfirmPendingPaymentWithMethod != null) {
@@ -451,6 +457,7 @@ fun BookingConfirmationScreen(
               if (item.cancellationQuote?.isEligibleToCancel == true) {
                 OutlinedButton(
                   onClick = { showCancelDialog = true },
+                  shape = CircleShape,
                   modifier =
                     Modifier.fillMaxWidth()
                       .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
@@ -470,73 +477,54 @@ fun BookingConfirmationScreen(
                 }
               }
             }
-          }
 
-          // Milestone 5 Actions: Chat with Host, Verified Review, Report Issue
-          if (onOpenChat != null) {
-            OutlinedButton(
-              onClick = { onOpenChat(booking.id) },
-              modifier =
-                Modifier.fillMaxWidth()
-                  .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
-                  .testTag("confirmation_message_host_button"),
-            ) {
-              Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null, modifier = Modifier.size(18.dp))
-              Spacer(modifier = Modifier.size(ParkSpaceSpacing.xs))
-              Text("Message Host About This Booking")
+            // Milestone 5 Actions: Chat with Host, Verified Review, Report Issue
+            if (onOpenChat != null) {
+              ParkSpaceLiquidGlassSecondaryButton(
+                text = "Message Host About This Booking",
+                leadingIcon = Icons.Outlined.ChatBubbleOutline,
+                onClick = { onOpenChat(booking.id) },
+                modifier = Modifier.fillMaxWidth().testTag("confirmation_message_host_button"),
+              )
             }
-          }
 
-          if ((booking.status == BookingStatus.CHECKED_OUT || booking.status == BookingStatus.COMPLETED) &&
-            !item.hasSubmittedReview &&
-            onSubmitReview != null
-          ) {
-            ParkSpacePrimaryButton(
-              text = "Write Verified Review",
-              onClick = { showReviewDialog = true },
-              leadingIcon = Icons.Outlined.RateReview,
-              modifier = Modifier.fillMaxWidth().testTag("confirmation_write_review_button"),
-            )
-          } else if (item.hasSubmittedReview) {
-            ParkSpaceStatusPill(
-              label = "Verified Review Submitted",
-              tone = StatusTone.AVAILABLE,
-              modifier = Modifier.testTag("confirmation_review_submitted_pill"),
-            )
-          }
-
-          if (onFileDispute != null) {
-            OutlinedButton(
-              onClick = { showDisputeDialog = true },
-              modifier =
-                Modifier.fillMaxWidth()
-                  .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
-                  .testTag("confirmation_report_issue_button"),
+            if ((booking.status == BookingStatus.CHECKED_OUT || booking.status == BookingStatus.COMPLETED) &&
+              !item.hasSubmittedReview &&
+              onSubmitReview != null
             ) {
-              Icon(Icons.Outlined.ReportProblem, contentDescription = null, modifier = Modifier.size(18.dp))
-              Spacer(modifier = Modifier.size(ParkSpaceSpacing.xs))
-              Text("Report an Issue / Complaint")
+              ParkSpaceLiquidGlassButton(
+                text = "Write Verified Review",
+                onClick = { showReviewDialog = true },
+                leadingIcon = Icons.Outlined.RateReview,
+                modifier = Modifier.fillMaxWidth().testTag("confirmation_write_review_button"),
+              )
+            } else if (item.hasSubmittedReview) {
+              ParkSpaceStatusPill(
+                label = "Verified Review Submitted",
+                tone = StatusTone.AVAILABLE,
+                modifier = Modifier.testTag("confirmation_review_submitted_pill"),
+              )
             }
-          }
 
-          OutlinedButton(
-            onClick = onOpenBookingsHistory,
-            modifier =
-              Modifier.fillMaxWidth()
-                .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
-                .testTag("view_my_bookings_button"),
-          ) {
-            Icon(
-              imageVector = Icons.Outlined.ReceiptLong,
-              contentDescription = null,
-              modifier = Modifier.size(18.dp),
+            if (onFileDispute != null) {
+              ParkSpaceLiquidGlassSecondaryButton(
+                text = "Report an Issue / Complaint",
+                leadingIcon = Icons.Outlined.ReportProblem,
+                onClick = { showDisputeDialog = true },
+                accentColor = MaterialTheme.colorScheme.error,
+                modifier = Modifier.fillMaxWidth().testTag("confirmation_report_issue_button"),
+              )
+            }
+
+            ParkSpaceLiquidGlassSecondaryButton(
+              text = "View All My Bookings",
+              leadingIcon = Icons.Outlined.ReceiptLong,
+              onClick = onOpenBookingsHistory,
+              modifier = Modifier.fillMaxWidth().testTag("view_my_bookings_button"),
             )
-            Spacer(modifier = Modifier.size(ParkSpaceSpacing.xs))
-            Text("View All My Bookings")
-          }
 
-          Spacer(modifier = Modifier.height(ParkSpaceSpacing.lg))
-        }
+            Spacer(modifier = Modifier.height(ParkSpaceSpacing.lg))
+          }
 
         if (showPaymentMethodDialog && onConfirmPendingPaymentWithMethod != null) {
           DemoPaymentMethodDialog(
@@ -577,11 +565,29 @@ fun BookingConfirmationScreen(
 
         if (showCancelDialog && item.cancellationQuote != null) {
           val quote = item.cancellationQuote
-          AlertDialog(
+          Dialog(
             onDismissRequest = { showCancelDialog = false },
-            title = { Text("Cancel Demo Booking?") },
-            text = {
-              Column(verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs)) {
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+          ) {
+            Surface(
+              modifier =
+                Modifier
+                  .padding(horizontal = ParkSpaceSpacing.screenHorizontal)
+                  .widthIn(max = 460.dp)
+                  .fillMaxWidth(),
+              shape = RoundedCornerShape(24.dp),
+              color = semantic.glassSurfaceElevated,
+              border = BorderStroke(1.dp, semantic.glassBorder),
+              tonalElevation = 6.dp,
+            ) {
+              Column(
+                modifier = Modifier.padding(ParkSpaceSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+              ) {
+                Text(
+                  text = "Cancel Demo Booking?",
+                  style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                )
                 Text(quote.policyRuleExplanation, style = MaterialTheme.typography.bodyMedium)
                 Text(
                   text = "Estimated Demo Refund: ${formatPkr(quote.refundAmountPkr)} (${quote.refundPercentageLabel})",
@@ -593,26 +599,37 @@ fun BookingConfirmationScreen(
                   style = MaterialTheme.typography.bodySmall,
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Row(
+                  modifier = Modifier.fillMaxWidth(),
+                  horizontalArrangement = Arrangement.End,
+                ) {
+                  TextButton(
+                    onClick = { showCancelDialog = false },
+                    modifier = Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget),
+                  ) {
+                    Text("Keep Booking")
+                  }
+                  Spacer(modifier = Modifier.width(ParkSpaceSpacing.xs))
+                  TextButton(
+                    onClick = {
+                      showCancelDialog = false
+                      onCancelBooking(booking.id)
+                    },
+                    modifier =
+                      Modifier
+                        .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
+                        .testTag("confirm_cancel_booking_button"),
+                  ) {
+                    Text("Confirm Cancellation", color = MaterialTheme.colorScheme.error)
+                  }
+                }
               }
-            },
-            confirmButton = {
-              TextButton(
-                onClick = {
-                  showCancelDialog = false
-                  onCancelBooking(booking.id)
-                },
-                modifier = Modifier.testTag("confirm_cancel_booking_button"),
-              ) {
-                Text("Confirm Cancellation", color = MaterialTheme.colorScheme.error)
-              }
-            },
-            dismissButton = {
-              TextButton(onClick = { showCancelDialog = false }) { Text("Keep Booking") }
-            },
-          )
+            }
+          }
         }
       }
     }
+  }
   }
 }
 

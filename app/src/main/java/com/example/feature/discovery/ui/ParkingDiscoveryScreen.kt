@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Clear
@@ -32,12 +33,10 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -48,20 +47,27 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.core.common.UiState
 import com.example.core.config.AppEnvironment
 import com.example.core.config.SupportedCity
-import com.example.core.designsystem.components.ParkSpaceModeBanner
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceAtmosphericBackground
+import com.example.core.designsystem.components.ParkSpaceCompactDemoPill
+import com.example.core.designsystem.components.ParkSpaceGlassIconButton
+import com.example.core.designsystem.components.ParkSpaceGlassSurface
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSearchField
 import com.example.core.designsystem.components.ParkSpaceStateContainer
 import com.example.feature.discovery.DiscoveryScreenData
 import com.example.feature.discovery.DiscoveryViewModel
 import com.example.feature.discovery.domain.model.DiscoveryViewMode
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,44 +78,51 @@ fun ParkingDiscoveryScreen(
   onViewDetails: (String) -> Unit,
   modifier: Modifier = Modifier,
   mapContentOverride: (@Composable (DiscoveryScreenData) -> Unit)? = null,
+  bottomBar: @Composable () -> Unit = {},
+  isDarkTheme: Boolean = false,
 ) {
   var showFilterSheet by rememberSaveable { mutableStateOf(false) }
+  val semantic = ParkSpaceThemeTokens.semantic
 
-  Scaffold(
-    modifier = modifier.fillMaxSize(),
-    containerColor = MaterialTheme.colorScheme.background,
-    contentWindowInsets = WindowInsets.safeDrawing,
-    topBar = {
-      TopAppBar(
-        title = {
-          Text(
-            text = stringResource(R.string.discovery_title),
-            style = MaterialTheme.typography.titleLarge,
-          )
-        },
-        navigationIcon = {
-          IconButton(
-            onClick = onBack,
-            modifier =
-              Modifier.size(ParkSpaceSpacing.minTouchTarget).testTag("discovery_back_button"),
-          ) {
-            Icon(
-              imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-              contentDescription = "Back",
+  ParkSpaceAtmosphericBackground(isDarkTheme = isDarkTheme, modifier = modifier) {
+    Scaffold(
+      modifier = Modifier.fillMaxSize(),
+      containerColor = Color.Transparent,
+      contentWindowInsets = WindowInsets.safeDrawing,
+      bottomBar = bottomBar,
+      topBar = {
+        TopAppBar(
+          title = {
+            Text(
+              text = stringResource(R.string.discovery_title),
+              style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             )
-          }
-        },
-        colors =
-          TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-          ),
-      )
-    },
-  ) { innerPadding ->
-    Box(
-      modifier = Modifier.fillMaxSize().padding(innerPadding),
-      contentAlignment = Alignment.TopCenter,
-    ) {
+          },
+          navigationIcon = {
+            ParkSpaceGlassIconButton(
+              onClick = onBack,
+              icon = Icons.AutoMirrored.Outlined.ArrowBack,
+              contentDescription = "Back",
+              testTag = "discovery_back_button",
+              modifier = Modifier.padding(start = ParkSpaceSpacing.xs),
+            )
+          },
+          actions = {
+            ParkSpaceCompactDemoPill(
+              modifier = Modifier.padding(end = ParkSpaceSpacing.xs).testTag("mode_banner"),
+            )
+          },
+          colors =
+            TopAppBarDefaults.topAppBarColors(
+              containerColor = Color.Transparent,
+            ),
+        )
+      },
+    ) { innerPadding ->
+      Box(
+        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        contentAlignment = Alignment.TopCenter,
+      ) {
       Column(
         modifier = Modifier.widthIn(max = 960.dp).fillMaxSize(),
       ) {
@@ -119,22 +132,18 @@ fun ParkingDiscoveryScreen(
               .padding(horizontal = ParkSpaceSpacing.screenHorizontal),
           verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
         ) {
-          ParkSpaceModeBanner(mode = AppEnvironment.currentMode)
-
           when (uiState) {
             is UiState.Success -> {
               val data = uiState.data
               val activeFilters = data.filter.activeFilterCount()
 
-              // Search input
-              OutlinedTextField(
+              // Liquid Glass Search input
+              ParkSpaceLiquidGlassSearchField(
                 value = data.filter.searchQuery,
                 onValueChange = viewModel::onSearchQueryChange,
-                placeholder = { Text(stringResource(R.string.discovery_search_hint)) },
-                leadingIcon = {
-                  Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
-                },
-                trailingIcon = {
+                placeholder = stringResource(R.string.discovery_search_hint),
+                leadingIcon = Icons.Outlined.Search,
+                trailingContent = {
                   if (data.filter.searchQuery.isNotEmpty()) {
                     IconButton(
                       onClick = { viewModel.onSearchQueryChange("") },
@@ -146,9 +155,7 @@ fun ParkingDiscoveryScreen(
                     }
                   }
                 },
-                singleLine = true,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth().testTag("discovery_search_input"),
+                modifier = Modifier.testTag("discovery_search_input"),
               )
 
               // City Chips
@@ -160,7 +167,11 @@ fun ParkingDiscoveryScreen(
                     selected = data.filter.city == city,
                     onClick = { viewModel.onSelectCity(city) },
                     label = { Text(city.displayName) },
-                    modifier = Modifier.testTag("discovery_city_${city.name.lowercase()}"),
+                    shape = CircleShape,
+                    modifier =
+                      Modifier
+                        .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
+                        .testTag("discovery_city_${city.name.lowercase()}"),
                     colors =
                       FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -272,13 +283,13 @@ fun ParkingDiscoveryScreen(
               modifier = Modifier.fillMaxSize().padding(ParkSpaceSpacing.lg),
               contentAlignment = Alignment.Center,
             ) {
-              Surface(
-                modifier = Modifier.fillMaxWidth().testTag("discovery_empty_state"),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surface,
+              ParkSpaceGlassSurface(
+                modifier = Modifier.testTag("discovery_empty_state"),
+                accentGlow = semantic.customerGlow,
+                contentPaddingDp = 22,
               ) {
                 Column(
-                  modifier = Modifier.padding(ParkSpaceSpacing.lg),
+                  modifier = Modifier.fillMaxWidth(),
                   horizontalAlignment = Alignment.CenterHorizontally,
                   verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
                 ) {
@@ -289,7 +300,7 @@ fun ParkingDiscoveryScreen(
                       } else {
                         "No matching parking in ${data.filter.city.displayName}"
                       },
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                   )
                   Text(
                     text =
@@ -302,13 +313,13 @@ fun ParkingDiscoveryScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                   )
                   if (isMarketplaceEmptyForCity) {
-                    ParkSpacePrimaryButton(
+                    ParkSpaceLiquidGlassButton(
                       text = stringResource(R.string.action_explore_parking),
                       onClick = { showFilterSheet = true },
                       modifier = Modifier.testTag("empty_explore_cities_button"),
                     )
                   } else {
-                    ParkSpacePrimaryButton(
+                    ParkSpaceLiquidGlassButton(
                       text = stringResource(R.string.discovery_reset_filters),
                       onClick = viewModel::onResetFilters,
                       modifier = Modifier.testTag("empty_reset_filters_button"),
@@ -405,4 +416,5 @@ fun ParkingDiscoveryScreen(
       }
     }
   }
+}
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,15 +31,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.core.config.BookingType
 import com.example.core.config.SupportedCity
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
 import com.example.core.domain.model.ParkingType
 import com.example.core.domain.model.VehicleType
 import com.example.feature.discovery.domain.model.CoveredFilter
 import com.example.feature.discovery.domain.model.ParkingDiscoveryFilter
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -69,9 +72,11 @@ fun ParkingFilterBottomSheet(
     mutableStateOf(filter.maxPricePkr?.toString().orEmpty())
   }
 
+  val semantic = ParkSpaceThemeTokens.semantic
   ModalBottomSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
+    containerColor = semantic.glassSurfaceElevated,
   ) {
     Column(
       modifier =
@@ -87,7 +92,7 @@ fun ParkingFilterBottomSheet(
       ) {
         Text(
           text = "Filter Parking (${filter.activeFilterCount()} active)",
-          style = MaterialTheme.typography.titleLarge,
+          style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
         )
         OutlinedButton(
           onClick = {
@@ -98,13 +103,13 @@ fun ParkingFilterBottomSheet(
           modifier =
             Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
               .testTag("sheet_reset_filters_button"),
-          shape = MaterialTheme.shapes.small,
+          shape = CircleShape,
         ) {
           Text("Reset All")
         }
       }
 
-      HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+      HorizontalDivider(color = semantic.glassBorder)
 
       // 1. City
       FilterSectionLabel("1. City")
@@ -275,7 +280,7 @@ fun ParkingFilterBottomSheet(
 
       Spacer(modifier = Modifier.height(ParkSpaceSpacing.xs))
 
-      ParkSpacePrimaryButton(
+      ParkSpaceLiquidGlassButton(
         text = "Show $resultCount Matching Spaces",
         onClick = onDismiss,
         modifier = Modifier.fillMaxWidth().testTag("apply_filters_button"),

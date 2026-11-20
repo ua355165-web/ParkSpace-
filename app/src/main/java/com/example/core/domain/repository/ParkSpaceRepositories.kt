@@ -44,6 +44,14 @@ interface DemoAuthRepository {
   suspend fun registerLocalAccount(request: DemoRegisterRequest): DemoAuthResult
 
   suspend fun signInLocalAccount(request: DemoSignInRequest): DemoAuthResult
+
+  suspend fun hasAccountForEmailAndRole(email: String, role: UserRole): Boolean
+
+  suspend fun activateOrSwitchCompanionRole(
+    currentSignedInUserId: String,
+    targetRole: UserRole,
+    businessAlias: String = "",
+  ): DemoAuthResult
 }
 
 data class BookingCreateRequest(

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -22,15 +24,11 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Garage
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.TwoWheeler
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -47,7 +45,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSecondaryButton
 import com.example.core.designsystem.components.ParkSpaceStatusPill
 import com.example.core.designsystem.components.StatusTone
 import com.example.core.domain.model.ParkingBay
@@ -55,6 +54,7 @@ import com.example.core.domain.model.ParkingSpace
 import com.example.core.domain.model.VehicleType
 import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -78,6 +78,8 @@ fun HostBaysManagerDialog(
   var editIsCovered by rememberSaveable { mutableStateOf(false) }
   var localError by rememberSaveable { mutableStateOf<String?>(null) }
 
+  val semantic = ParkSpaceThemeTokens.semantic
+
   Dialog(
     onDismissRequest = onDismiss,
     properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -89,8 +91,9 @@ fun HostBaysManagerDialog(
           .widthIn(max = 540.dp)
           .padding(ParkSpaceSpacing.sm)
           .testTag("host_bays_manager_dialog"),
-      shape = MaterialTheme.shapes.medium,
-      color = MaterialTheme.colorScheme.surface,
+      shape = RoundedCornerShape(24.dp),
+      color = semantic.glassSurfaceElevated,
+      border = BorderStroke(1.dp, semantic.glassBorder),
       tonalElevation = 6.dp,
     ) {
       Column(
@@ -116,8 +119,9 @@ fun HostBaysManagerDialog(
         }
 
         Surface(
-          shape = MaterialTheme.shapes.small,
-          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+          shape = RoundedCornerShape(16.dp),
+          color = semantic.glassSurface,
+          border = BorderStroke(1.dp, semantic.glassBorder),
           modifier = Modifier.fillMaxWidth(),
         ) {
           Row(
@@ -184,11 +188,11 @@ fun HostBaysManagerDialog(
         } else {
           bays.forEach { bay ->
             Surface(
-              shape = MaterialTheme.shapes.small,
-              border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+              shape = RoundedCornerShape(16.dp),
+              border = BorderStroke(1.dp, semantic.glassBorder),
               color =
-                if (bay.isActiveInDemo) MaterialTheme.colorScheme.surface
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                if (bay.isActiveInDemo) semantic.glassSurfaceElevated
+                else semantic.glassSurface,
               modifier = Modifier.fillMaxWidth().testTag("host_bay_item_${bay.id}"),
             ) {
               Row(
@@ -253,9 +257,9 @@ fun HostBaysManagerDialog(
         val currentEditingBay = editingBay
         if (currentEditingBay != null) {
           Surface(
-            shape = MaterialTheme.shapes.small,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f)),
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.2f),
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)),
+            color = semantic.glassSurface,
             modifier = Modifier.fillMaxWidth().testTag("host_edit_bay_form"),
           ) {
             Column(
@@ -296,6 +300,7 @@ fun HostBaysManagerDialog(
                       localError = null
                     },
                     label = { Text(vType.displayName) },
+                    shape = CircleShape,
                     leadingIcon = {
                       if (isSelected) {
                         Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -338,31 +343,29 @@ fun HostBaysManagerDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
               ) {
-                OutlinedButton(
+                ParkSpaceLiquidGlassSecondaryButton(
+                  text = "Cancel",
                   onClick = {
                     editingBay = null
                     localError = null
                   },
                   modifier = Modifier.weight(1f).testTag("host_cancel_edit_bay_button"),
-                  shape = MaterialTheme.shapes.small,
-                ) {
-                  Text("Cancel")
-                }
-                ParkSpacePrimaryButton(
+                )
+                ParkSpaceLiquidGlassButton(
                   text = "Save Changes",
                   onClick = {
                     val code = editBayCode.trim()
                     if (code.length < 2) {
                       localError = "Enter bay code (at least 2 chars)."
-                      return@ParkSpacePrimaryButton
+                      return@ParkSpaceLiquidGlassButton
                     }
                     if (editSelectedVehicles.isEmpty()) {
                       localError = "Select at least one vehicle type."
-                      return@ParkSpacePrimaryButton
+                      return@ParkSpaceLiquidGlassButton
                     }
                     if (bays.any { it.id != currentEditingBay.id && it.bayCode.equals(code, ignoreCase = true) }) {
                       localError = "Bay code '$code' already exists."
-                      return@ParkSpacePrimaryButton
+                      return@ParkSpaceLiquidGlassButton
                     }
                     onUpdateBay(
                       space.id,
@@ -385,7 +388,9 @@ fun HostBaysManagerDialog(
         Spacer(modifier = Modifier.height(ParkSpaceSpacing.xs))
 
         if (!showAddForm) {
-          OutlinedButton(
+          ParkSpaceLiquidGlassSecondaryButton(
+            text = "Add New Parking Bay",
+            leadingIcon = Icons.Outlined.Add,
             onClick = {
               showAddForm = true
               editingBay = null
@@ -395,17 +400,12 @@ fun HostBaysManagerDialog(
               Modifier.fillMaxWidth()
                 .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
                 .testTag("host_open_add_bay_form_button"),
-            shape = MaterialTheme.shapes.small,
-          ) {
-            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.size(ParkSpaceSpacing.xs))
-            Text("Add New Parking Bay")
-          }
+          )
         } else {
           Surface(
-            shape = MaterialTheme.shapes.small,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f),
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
+            color = semantic.glassSurface,
             modifier = Modifier.fillMaxWidth(),
           ) {
             Column(
@@ -442,6 +442,7 @@ fun HostBaysManagerDialog(
                         }
                     },
                     label = { Text(vType.displayName) },
+                    shape = CircleShape,
                     leadingIcon = {
                       if (isSelected) {
                         Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -483,24 +484,22 @@ fun HostBaysManagerDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
               ) {
-                OutlinedButton(
+                ParkSpaceLiquidGlassSecondaryButton(
+                  text = "Cancel",
                   onClick = { showAddForm = false },
                   modifier = Modifier.weight(1f),
-                  shape = MaterialTheme.shapes.small,
-                ) {
-                  Text("Cancel")
-                }
-                ParkSpacePrimaryButton(
+                )
+                ParkSpaceLiquidGlassButton(
                   text = "Save Bay",
                   onClick = {
                     val code = newBayCode.trim()
                     if (code.length < 2) {
                       localError = "Enter bay code (at least 2 chars)."
-                      return@ParkSpacePrimaryButton
+                      return@ParkSpaceLiquidGlassButton
                     }
                     if (bays.any { it.bayCode.equals(code, ignoreCase = true) }) {
                       localError = "Bay code '$code' already exists."
-                      return@ParkSpacePrimaryButton
+                      return@ParkSpaceLiquidGlassButton
                     }
                     onAddBay(space.id, code, selectedVehicles, isCoveredBay)
                     newBayCode = ""

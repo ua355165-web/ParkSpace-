@@ -731,6 +731,11 @@ class DemoDisputeRepositoryImpl(
           "You do not have permission to respond to another Host's complaint."
         )
       }
+      if (existing.status == DisputeStatus.RESOLVED || existing.status == DisputeStatus.DISMISSED) {
+        return@withTransaction DisputeMutationResult.Rejected(
+          "Complaint ${existing.bookingCode} is already finalized (${existing.status.displayName}) and cannot be modified."
+        )
+      }
       val updated =
         existing.copy(
           hostResponseNote = cleanNote,
@@ -774,6 +779,16 @@ class DemoDisputeRepositoryImpl(
       if (actorUserId != existing.customerId && actorUserId != existing.hostId) {
         return@withTransaction DisputeMutationResult.Rejected(
           "You do not have permission to update this complaint."
+        )
+      }
+      if (existing.status == DisputeStatus.RESOLVED || existing.status == DisputeStatus.DISMISSED) {
+        return@withTransaction DisputeMutationResult.Rejected(
+          "Complaint ${existing.bookingCode} is already finalized (${existing.status.displayName}) and cannot be modified or reopened."
+        )
+      }
+      if (targetStatus == DisputeStatus.OPEN) {
+        return@withTransaction DisputeMutationResult.Rejected(
+          "Complaints cannot be reverted or reopened to Open."
         )
       }
       val updated =

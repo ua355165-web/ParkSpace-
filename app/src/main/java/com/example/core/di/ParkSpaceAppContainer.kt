@@ -73,6 +73,9 @@ class ParkSpaceAppContainer(context: Context) {
   val sessionPersistence: DemoSessionPersistence =
     SharedPrefsDemoSessionPersistence(context)
 
+  val themePreferences: com.example.ui.theme.ThemePreferenceStore =
+    com.example.ui.theme.SharedPrefsThemePreferenceStore(context)
+
   val demoSessionManager: DemoSessionManager =
     DemoSessionManager(userProfileRepository, sessionPersistence)
 

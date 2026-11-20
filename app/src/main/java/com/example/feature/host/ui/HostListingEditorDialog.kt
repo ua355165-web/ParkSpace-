@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -29,7 +31,6 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,9 +61,8 @@ import coil.compose.AsyncImage
 import com.example.core.common.ListingPhotoStorage
 import com.example.core.config.AppEnvironment
 import com.example.core.config.SupportedCity
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
-import com.example.core.designsystem.components.ParkSpaceStatusPill
-import com.example.core.designsystem.components.StatusTone
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSecondaryButton
 import com.example.core.domain.model.AvailabilitySchedule
 import com.example.core.domain.model.HostVerificationStatus
 import com.example.core.domain.model.ParkingAmenity
@@ -72,8 +72,8 @@ import com.example.core.domain.model.ParkingSpace
 import com.example.core.domain.model.ParkingType
 import com.example.core.domain.model.VehicleType
 import com.example.feature.discovery.ui.ParkingSpaceMediaBanner
-import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -150,6 +150,7 @@ fun HostListingEditorDialog(
     }
 
   val canPublish = hostVerificationStatus == HostVerificationStatus.APPROVED
+  val semantic = ParkSpaceThemeTokens.semantic
 
   Dialog(
     onDismissRequest = onDismiss,
@@ -162,8 +163,9 @@ fun HostListingEditorDialog(
           .widthIn(max = 600.dp)
           .padding(ParkSpaceSpacing.sm)
           .testTag("host_listing_editor_dialog"),
-      shape = MaterialTheme.shapes.medium,
-      color = MaterialTheme.colorScheme.surface,
+      shape = RoundedCornerShape(24.dp),
+      color = semantic.glassSurfaceElevated,
+      border = BorderStroke(1.dp, semantic.glassBorder),
       tonalElevation = 6.dp,
     ) {
       Column(
@@ -181,7 +183,7 @@ fun HostListingEditorDialog(
               style = MaterialTheme.typography.titleLarge,
             )
             Text(
-              text = "Pakistan Parking Marketplace (Demo)",
+              text = "Pakistan Parking Marketplace • Local Demo",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -265,6 +267,7 @@ fun HostListingEditorDialog(
               selected = selectedCity == city,
               onClick = { selectedCity = city },
               label = { Text(city.displayName) },
+              shape = CircleShape,
               modifier = Modifier.testTag("host_editor_city_chip_${city.name}"),
             )
           }
@@ -279,6 +282,7 @@ fun HostListingEditorDialog(
           label = { Text("Neighborhood / Locality *") },
           placeholder = { Text("e.g. Gulberg III, Main Boulevard") },
           singleLine = true,
+          shape = RoundedCornerShape(14.dp),
           modifier = Modifier.fillMaxWidth().testTag("host_listing_area_input"),
         )
 
@@ -290,6 +294,7 @@ fun HostListingEditorDialog(
               selected = parkingType == pType,
               onClick = { parkingType = pType },
               label = { Text(pType.displayName) },
+              shape = CircleShape,
               modifier = Modifier.testTag("host_editor_type_chip_${pType.name}"),
             )
           }
@@ -368,6 +373,7 @@ fun HostListingEditorDialog(
                   }
               },
               label = { Text(vType.displayName) },
+              shape = CircleShape,
               leadingIcon = {
                 if (isSelected) Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(16.dp))
               },
@@ -387,6 +393,7 @@ fun HostListingEditorDialog(
                 amenities = if (isSelected) amenities - amenity else amenities + amenity
               },
               label = { Text(amenity.displayName) },
+              shape = CircleShape,
               leadingIcon = {
                 if (isSelected) Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(16.dp))
               },
@@ -398,8 +405,9 @@ fun HostListingEditorDialog(
         // Private Gate Details & 200m Masking
         Text(text = "Private Gate Details (Unlocked After Confirmed Booking)", style = MaterialTheme.typography.titleSmall)
         Surface(
-          shape = MaterialTheme.shapes.small,
-          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+          shape = RoundedCornerShape(14.dp),
+          color = semantic.glassSurface,
+          border = BorderStroke(1.dp, semantic.glassBorder),
           modifier = Modifier.fillMaxWidth(),
         ) {
           Column(modifier = Modifier.padding(ParkSpaceSpacing.sm), verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xxs)) {
@@ -421,6 +429,7 @@ fun HostListingEditorDialog(
           onValueChange = { privateGateSummary = it },
           label = { Text("Private Gate Instructions / Pin / Contact Note") },
           minLines = 2,
+          shape = RoundedCornerShape(14.dp),
           modifier = Modifier.fillMaxWidth().testTag("host_listing_gate_summary_input"),
         )
 
@@ -432,23 +441,20 @@ fun HostListingEditorDialog(
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        OutlinedButton(
+        ParkSpaceLiquidGlassSecondaryButton(
+          text = if (photoUris.size >= 5) "Maximum 5 Photos Added" else "Upload Photos from Device",
+          leadingIcon = Icons.Outlined.AddPhotoAlternate,
+          enabled = photoUris.size < 5,
           onClick = {
             photoPickerLauncher.launch(
               PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
             )
           },
-          enabled = photoUris.size < 5,
           modifier =
             Modifier.fillMaxWidth()
               .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
               .testTag("host_pick_photos_button"),
-          shape = MaterialTheme.shapes.small,
-        ) {
-          Icon(Icons.Outlined.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(modifier = Modifier.size(ParkSpaceSpacing.xs))
-          Text(if (photoUris.size >= 5) "Maximum 5 Photos Added" else "Upload Photos from Device")
-        }
+        )
 
         if (photoUris.isNotEmpty()) {
           LazyRow(
@@ -548,7 +554,8 @@ fun HostListingEditorDialog(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
         ) {
-          OutlinedButton(
+          ParkSpaceLiquidGlassSecondaryButton(
+            text = "Save as Draft",
             onClick = {
               val validatedSpace = validateAndBuildSpace(
                 existingSpace = existingSpace,
@@ -568,7 +575,7 @@ fun HostListingEditorDialog(
                 photoTags = photoTags,
                 photoUris = photoUris,
                 onError = { validationError = it },
-              ) ?: return@OutlinedButton
+              ) ?: return@ParkSpaceLiquidGlassSecondaryButton
 
               onSaveListing(validatedSpace, false)
             },
@@ -576,18 +583,15 @@ fun HostListingEditorDialog(
               Modifier.weight(1f)
                 .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
                 .testTag("host_save_draft_button"),
-            shape = MaterialTheme.shapes.small,
-          ) {
-            Text("Save as Draft")
-          }
+          )
 
-          ParkSpacePrimaryButton(
+          ParkSpaceLiquidGlassButton(
             text = "Publish Listing",
             onClick = {
               if (!canPublish) {
                 validationError =
                   "Cannot publish: Host account verification is ${hostVerificationStatus.displayName}. Super Admin approval is required. Save as Draft instead."
-                return@ParkSpacePrimaryButton
+                return@ParkSpaceLiquidGlassButton
               }
 
               val validatedSpace = validateAndBuildSpace(
@@ -608,7 +612,7 @@ fun HostListingEditorDialog(
                 photoTags = photoTags,
                 photoUris = photoUris,
                 onError = { validationError = it },
-              ) ?: return@ParkSpacePrimaryButton
+              ) ?: return@ParkSpaceLiquidGlassButton
 
               onSaveListing(validatedSpace, true)
             },

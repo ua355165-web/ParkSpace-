@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">ParkSpace</string>
     <string name="brand_tagline">Verified Urban Parking Across Pakistan</string>
-    <string name="mode_badge_demo">DEMO SANDBOX • LOCAL DATA ONLY</string>
+    <string name="mode_badge_demo">Local Demo</string>
     <string name="foundation_title">Milestone 0: Project Foundation</string>
     <string name="foundation_subtitle">Clean Architecture + Material 3 Design System Initialized</string>
     <string name="m1_foundation_title">Milestone 1: Core Foundation &amp; Demo Seed</string>
@@ -17,7 +17,12 @@
     <string name="demo_sandbox_title">Local Demo Account Access</string>
     <string name="demo_sandbox_disclaimer">Demo Account • Local Device Only • No Real Email Verification</string>
     <string name="theme_toggle_cd">Toggle light or dark theme preview</string>
+    <string name="global_menu_cd">Open ParkSpace menu</string>
     <string name="settings_icon_cd">Open Demo profile and settings</string>
+    <string name="welcome_hero_title">Smart Parking, Effortless Access</string>
+    <string name="welcome_hero_subtitle">Select your workspace to find secure bays or earn from your parking space.</string>
+    <string name="customer_entry_subtitle">Find parking, book spaces, manage vehicles &amp; bookings.</string>
+    <string name="host_entry_subtitle">List spaces, manage bays, schedules &amp; earnings.</string>
     <string name="discovery_title">Discover Parking</string>
     <string name="discovery_search_hint">Search city, locality, or parking title</string>
     <string name="discovery_map_view">Map</string>

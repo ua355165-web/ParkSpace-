@@ -20,12 +20,27 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.core.common.UiState
 import com.example.core.config.SupportedCity
+import com.example.core.config.UserRole
+import com.example.core.data.demo.DemoAdminRepositoryImpl
+import com.example.core.data.demo.DemoAuthRepositoryImpl
 import com.example.core.data.demo.DemoParkingRepositoryImpl
 import com.example.core.data.demo.DemoUserProfileRepositoryImpl
 import com.example.core.database.ParkSpaceDemoDatabase
+import com.example.core.domain.model.AvailabilitySchedule
+import com.example.core.domain.model.ParkingAmenity
+import com.example.core.domain.model.ParkingDayOfWeek
+import com.example.core.domain.model.ParkingLocation
+import com.example.core.domain.model.ParkingSpace
+import com.example.core.domain.model.ParkingType
+import com.example.core.domain.model.VehicleType
+import com.example.core.domain.repository.AdminMutationResult
+import com.example.core.domain.repository.DemoAuthResult
+import com.example.core.domain.repository.DemoRegisterRequest
+import com.example.core.domain.repository.HostListingMutationResult
 import com.example.core.navigation.NavGuardResult
 import com.example.core.navigation.ParkSpaceNavGuard
 import com.example.core.navigation.ParkSpaceRoute
+import com.example.demo.sandbox.DemoSandboxActionResult
 import com.example.demo.sandbox.DemoSessionManager
 import com.example.demo.seed.DemoSeedInitializer
 import com.example.feature.discovery.DiscoveryScreenData
@@ -61,8 +76,10 @@ class Milestone2DiscoveryRobolectricTest {
   private lateinit var database: ParkSpaceDemoDatabase
   private lateinit var seedInitializer: DemoSeedInitializer
   private lateinit var userRepo: DemoUserProfileRepositoryImpl
+  private lateinit var authRepo: DemoAuthRepositoryImpl
   private lateinit var parkingRepo: DemoParkingRepositoryImpl
   private lateinit var sessionManager: DemoSessionManager
+  private lateinit var adminRepo: DemoAdminRepositoryImpl
   private lateinit var viewModelStore: ViewModelStore
   private lateinit var discoveryViewModel: DiscoveryViewModel
 
@@ -74,9 +91,11 @@ class Milestone2DiscoveryRobolectricTest {
         .allowMainThreadQueries()
         .build()
     seedInitializer = DemoSeedInitializer(database)
-    userRepo = DemoUserProfileRepositoryImpl(database.userDao())
-    parkingRepo = DemoParkingRepositoryImpl(database.parkingDao())
+    userRepo = DemoUserProfileRepositoryImpl(database.userDao(), database)
+    authRepo = DemoAuthRepositoryImpl(database)
+    parkingRepo = DemoParkingRepositoryImpl(database)
     sessionManager = DemoSessionManager(userRepo)
+    adminRepo = DemoAdminRepositoryImpl(database) { sessionManager.session.value }
     viewModelStore = ViewModelStore()
     discoveryViewModel =
       ViewModelProvider(
@@ -95,9 +114,83 @@ class Milestone2DiscoveryRobolectricTest {
     database.close()
   }
 
-  private fun seedDatabaseSync() {
-    runBlocking(Dispatchers.IO) { seedInitializer.seedIfNeeded() }
+  private fun seedHostCreatedDiscoveryInventory() {
+    runBlocking(Dispatchers.IO) {
+      seedInitializer.seedIfNeeded()
+      val host =
+        (authRepo.registerLocalAccount(
+          DemoRegisterRequest(
+            role = UserRole.HOST,
+            fullName = "Raza Host",
+            email = "raza.m2@parkspace.demo",
+            password = "password123",
+            confirmPassword = "password123",
+            preferredCity = SupportedCity.LAHORE,
+            businessAlias = "M2 Verified Garages",
+          )
+        ) as DemoAuthResult.Success).user
+
+      assertTrue(sessionManager.unlockPrivateDemoAdminSandbox(true) is DemoSandboxActionResult.Success)
+      val adminId = DemoSessionManager.PRIVATE_DEMO_ADMIN_ID
+      assertTrue(adminRepo.approveHostKyc(adminId, host.id, "KYC verified", 1_000L) is AdminMutationResult.Success)
+
+      val spaces =
+        listOf(
+          sampleDiscoverySpace("demo-lhr-03", host.id, SupportedCity.LAHORE, "Anarkali Yard", "Anarkali", 90),
+          sampleDiscoverySpace("demo-lhr-02", host.id, SupportedCity.LAHORE, "DHA Phase 5 Deck", "DHA Phase 5", 150),
+          sampleDiscoverySpace("demo-lhr-01", host.id, SupportedCity.LAHORE, "Gulberg Prime Garage", "Gulberg III", 200),
+          sampleDiscoverySpace("demo-khi-01", host.id, SupportedCity.KARACHI, "Clifton Deck", "Clifton", 140),
+          sampleDiscoverySpace("demo-khi-02", host.id, SupportedCity.KARACHI, "PECHS Compound", "PECHS", 180),
+          sampleDiscoverySpace("demo-khi-03", host.id, SupportedCity.KARACHI, "Saddar Lot", "Saddar", 80),
+        )
+      spaces.forEach { space ->
+        assertTrue(
+          parkingRepo.createOrUpdateListing(host.id, space, publishImmediately = true)
+            is HostListingMutationResult.Success
+        )
+        assertTrue(
+          adminRepo.approveListing(adminId, space.id, "Approved for discovery", 2_000L)
+            is AdminMutationResult.Success
+        )
+      }
+      sessionManager.signOutDemoSandbox()
+    }
   }
+
+  private fun sampleDiscoverySpace(
+    id: String,
+    hostId: String,
+    city: SupportedCity,
+    title: String,
+    areaLabel: String,
+    hourlyRatePkr: Int,
+  ): ParkingSpace =
+    ParkingSpace(
+      id = id,
+      hostId = hostId,
+      title = title,
+      description = "Host-created verified parking in $areaLabel, ${city.displayName}.",
+      parkingType = ParkingType.COVERED_GARAGE,
+      location =
+        ParkingLocation(
+          city = city,
+          areaLabel = areaLabel,
+          publicMaskedLatitude = city.centerLatitude,
+          publicMaskedLongitude = city.centerLongitude,
+          maskRadiusMeters = 200,
+        ),
+      hourlyRatePkr = hourlyRatePkr,
+      dailyRatePkr = hourlyRatePkr * 8,
+      monthlyRatePkr = null,
+      monthlyEnabled = false,
+      totalBays = 4,
+      availableBays = 3,
+      supportedVehicles = setOf(VehicleType.CAR, VehicleType.BIKE),
+      amenities = setOf(ParkingAmenity.COVERED, ParkingAmenity.CCTV),
+      schedule = AvailabilitySchedule(ParkingDayOfWeek.entries.toSet(), 0, 23, true),
+      isApproved = false,
+      isDemoListing = true,
+    )
 
   private fun startUiStateSubscription(): Job =
     CoroutineScope(Dispatchers.Main.immediate).launch {
@@ -123,10 +216,10 @@ class Milestone2DiscoveryRobolectricTest {
 
   @Test
   fun `discovery viewmodel integrates room seed data, map states, and marker selection`() {
-    seedDatabaseSync()
+    seedHostCreatedDiscoveryInventory()
     val subscription = startUiStateSubscription()
     try {
-      val initial = awaitDiscoveryState()
+      val initial = awaitDiscoveryState { it.result.listings.size == 3 }
       assertEquals(SupportedCity.LAHORE, initial.filter.city)
       assertEquals(3, initial.result.listings.size)
       assertEquals(3, initial.result.markers.size)
@@ -151,7 +244,7 @@ class Milestone2DiscoveryRobolectricTest {
       assertNotNull(selected.selectedListing)
 
       discoveryViewModel.onSelectCity(SupportedCity.KARACHI)
-      val karachi = awaitDiscoveryState { it.filter.city == SupportedCity.KARACHI }
+      val karachi = awaitDiscoveryState { it.filter.city == SupportedCity.KARACHI && it.result.listings.size == 3 }
       assertNull(karachi.selectedListing)
       assertEquals(3, karachi.result.listings.size)
     } finally {
@@ -174,14 +267,37 @@ class Milestone2DiscoveryRobolectricTest {
           is NavGuardResult.Denied
       )
 
-      sessionManager.switchToDemoUser("demo-host-lhr")
+      val hostUser =
+        (authRepo.registerLocalAccount(
+          DemoRegisterRequest(
+            role = UserRole.HOST,
+            fullName = "M2 Guard Host",
+            email = "guard.host.m2@parkspace.demo",
+            password = "password123",
+            confirmPassword = "password123",
+            preferredCity = SupportedCity.LAHORE,
+            businessAlias = "Guard Garage",
+          )
+        ) as DemoAuthResult.Success).user
+      assertTrue(sessionManager.activateAuthenticatedUser(hostUser) is DemoSandboxActionResult.Success)
       val host = sessionManager.session.value
       assertTrue(
         ParkSpaceNavGuard.evaluateAccess(ParkSpaceRoute.CustomerDiscovery, host)
           is NavGuardResult.Denied
       )
 
-      sessionManager.switchToDemoUser("demo-cust-lhr")
+      val customerUser =
+        (authRepo.registerLocalAccount(
+          DemoRegisterRequest(
+            role = UserRole.CUSTOMER,
+            fullName = "M2 Guard Customer",
+            email = "guard.cust.m2@parkspace.demo",
+            password = "password123",
+            confirmPassword = "password123",
+            preferredCity = SupportedCity.LAHORE,
+          )
+        ) as DemoAuthResult.Success).user
+      assertTrue(sessionManager.activateAuthenticatedUser(customerUser) is DemoSandboxActionResult.Success)
       val customer = sessionManager.session.value
       assertTrue(
         ParkSpaceNavGuard.evaluateAccess(ParkSpaceRoute.CustomerDiscovery, customer)
@@ -197,7 +313,7 @@ class Milestone2DiscoveryRobolectricTest {
 
   @Test
   fun `discovery compose screen supports search, empty reset, view toggle, and preview card`() {
-    seedDatabaseSync()
+    seedHostCreatedDiscoveryInventory()
     var navigatedDetailId: String? = null
 
     composeRule.setContent {
@@ -262,7 +378,7 @@ class Milestone2DiscoveryRobolectricTest {
 
   @Test
   fun `detail preview screen displays privacy notice and milestone 3 boundary`() {
-    seedDatabaseSync()
+    seedHostCreatedDiscoveryInventory()
     val subscription = startUiStateSubscription()
     val listing =
       try {

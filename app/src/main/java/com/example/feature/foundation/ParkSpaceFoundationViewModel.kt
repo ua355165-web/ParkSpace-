@@ -9,11 +9,13 @@ import com.example.core.config.UserRole
 import com.example.core.di.ParkSpaceAppContainer
 import com.example.core.domain.model.Booking
 import com.example.core.domain.model.CustomerProfile
+import com.example.core.domain.model.DemoPaymentTransaction
 import com.example.core.domain.model.HostProfile
 import com.example.core.domain.model.ParkingLocation
 import com.example.core.domain.model.ParkingSpace
 import com.example.core.domain.model.VehicleProfile
 import com.example.core.domain.model.VehicleType
+import com.example.core.domain.repository.DemoAuthResult
 import com.example.demo.sandbox.DemoSandboxActionResult
 import com.example.demo.sandbox.DemoSessionState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -42,6 +45,9 @@ data class FoundationDashboardData(
   val unreadNotificationsCount: Int = 0,
   val unreadChatsCount: Int = 0,
   val availableDemoCreditPkr: Int = 0,
+  val activeUserTransactions: List<DemoPaymentTransaction> = emptyList(),
+  val spacesById: Map<String, ParkingSpace> = emptyMap(),
+  val hasCompanionHostAccount: Boolean = false,
 ) {
   /**
    * Returns only the ~200m privacy-masked locations for public pre-booking previews.
@@ -157,9 +163,47 @@ class ParkSpaceFoundationViewModel(
       else container.paymentTransactionRepository.observeAvailableDemoCreditPkr(userId)
     }
 
+  private val activeTransactionsFlow =
+    sessionState.flatMapLatest { state ->
+      val userId = state.activeUser?.id
+      if (userId == null || state.activeRole != UserRole.CUSTOMER) flowOf(emptyList())
+      else container.paymentTransactionRepository.observeTransactionsForCustomer(userId)
+    }
+
+  private val hasCompanionHostFlow =
+    sessionState.flatMapLatest { state ->
+      val user = state.activeUser
+      if (user == null || state.activeRole != UserRole.CUSTOMER || !user.isSelfRegisteredDemoAccount) {
+        flowOf(false)
+      } else {
+        flow {
+          emit(
+            container.demoAuthRepository.hasAccountForEmailAndRole(
+              email = user.emailMasked,
+              role = UserRole.HOST,
+            )
+          )
+        }
+      }
+    }
+
+  private data class MarketplaceMetaSlice(
+    val unreadNotifications: Int,
+    val unreadChats: Int,
+    val demoCreditsPkr: Int,
+    val transactions: List<DemoPaymentTransaction>,
+    val hasCompanionHost: Boolean,
+  )
+
   private val marketplaceMetaFlow =
-    combine(unreadNotificationsFlow, unreadChatsFlow, demoCreditFlow) { notifs, chats, credits ->
-      Triple(notifs, chats, credits)
+    combine(
+      unreadNotificationsFlow,
+      unreadChatsFlow,
+      demoCreditFlow,
+      activeTransactionsFlow,
+      hasCompanionHostFlow,
+    ) { notifs, chats, credits, txs, hasHost ->
+      MarketplaceMetaSlice(notifs, chats, credits, txs, hasHost)
     }
 
   val uiState: StateFlow<UiState<FoundationDashboardData>> =
@@ -206,9 +250,12 @@ class ParkSpaceFoundationViewModel(
                 activeHostProfile = userSlice.hostProfile,
                 activeHostSpaces = userSlice.hostSpaces,
                 activeUserBookings = userSlice.bookings,
-                unreadNotificationsCount = meta.first,
-                unreadChatsCount = meta.second,
-                availableDemoCreditPkr = meta.third,
+                unreadNotificationsCount = meta.unreadNotifications,
+                unreadChatsCount = meta.unreadChats,
+                availableDemoCreditPkr = meta.demoCreditsPkr,
+                activeUserTransactions = meta.transactions,
+                spacesById = catalog.allSpaces.associateBy { it.id },
+                hasCompanionHostAccount = meta.hasCompanionHost,
               )
             )
           }
@@ -316,6 +363,82 @@ class ParkSpaceFoundationViewModel(
           onUnlocked()
         }
         is DemoSandboxActionResult.Rejected -> _sandboxFeedback.value = result.reason
+      }
+    }
+  }
+
+  fun switchToCompanionHostDashboard(
+    onSwitched: () -> Unit,
+    onRequiresActivation: () -> Unit,
+  ) {
+    val activeUser = sessionState.value.activeUser ?: return
+    if (activeUser.role != UserRole.CUSTOMER || !activeUser.isSelfRegisteredDemoAccount) return
+
+    viewModelScope.launch {
+      val hasCompanion =
+        container.demoAuthRepository.hasAccountForEmailAndRole(
+          email = activeUser.emailMasked,
+          role = UserRole.HOST,
+        )
+      if (!hasCompanion) {
+        onRequiresActivation()
+        return@launch
+      }
+      when (
+        val result =
+          container.demoAuthRepository.activateOrSwitchCompanionRole(
+            currentSignedInUserId = activeUser.id,
+            targetRole = UserRole.HOST,
+          )
+      ) {
+        is DemoAuthResult.Rejected -> _sandboxFeedback.value = result.reason
+        is DemoAuthResult.Success -> {
+          when (val activation = container.demoSessionManager.activateAuthenticatedUser(result.user)) {
+            is DemoSandboxActionResult.Rejected -> _sandboxFeedback.value = activation.reason
+            is DemoSandboxActionResult.Success -> {
+              _sandboxFeedback.value = null
+              onSwitched()
+            }
+          }
+        }
+      }
+    }
+  }
+
+  fun switchToCompanionCustomerDashboard(
+    onSwitched: () -> Unit,
+    onRequiresActivation: () -> Unit,
+  ) {
+    val activeUser = sessionState.value.activeUser ?: return
+    if (activeUser.role != UserRole.HOST || !activeUser.isSelfRegisteredDemoAccount) return
+
+    viewModelScope.launch {
+      val hasCompanion =
+        container.demoAuthRepository.hasAccountForEmailAndRole(
+          email = activeUser.emailMasked,
+          role = UserRole.CUSTOMER,
+        )
+      if (!hasCompanion) {
+        onRequiresActivation()
+        return@launch
+      }
+      when (
+        val result =
+          container.demoAuthRepository.activateOrSwitchCompanionRole(
+            currentSignedInUserId = activeUser.id,
+            targetRole = UserRole.CUSTOMER,
+          )
+      ) {
+        is DemoAuthResult.Rejected -> _sandboxFeedback.value = result.reason
+        is DemoAuthResult.Success -> {
+          when (val activation = container.demoSessionManager.activateAuthenticatedUser(result.user)) {
+            is DemoSandboxActionResult.Rejected -> _sandboxFeedback.value = activation.reason
+            is DemoSandboxActionResult.Success -> {
+              _sandboxFeedback.value = null
+              onSwitched()
+            }
+          }
+        }
       }
     }
   }

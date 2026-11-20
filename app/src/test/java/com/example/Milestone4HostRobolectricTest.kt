@@ -135,6 +135,67 @@ class Milestone4HostRobolectricTest {
     runCatching { database.close() }
   }
 
+  private suspend fun createApprovedHostWithSpace(
+    email: String,
+    fullName: String,
+    city: SupportedCity,
+    spaceId: String,
+    title: String,
+    areaLabel: String,
+  ): Pair<UserProfile, ParkingSpace> {
+    val hostUser =
+      (authRepo.registerLocalAccount(
+        DemoRegisterRequest(
+          role = UserRole.HOST,
+          fullName = fullName,
+          email = email,
+          password = "password123",
+          confirmPassword = "password123",
+          preferredCity = city,
+          businessAlias = "$fullName Plaza",
+        )
+      ) as DemoAuthResult.Success).user
+    val hp = database.userDao().getHostProfileOnce(hostUser.id)!!
+    database.userDao().upsertHostProfile(hp.copy(verificationStatus = HostVerificationStatus.APPROVED))
+    val draft =
+      ParkingSpace(
+        id = spaceId,
+        hostId = hostUser.id,
+        title = title,
+        description = "Host-created parking facility in $areaLabel.",
+        parkingType = ParkingType.COVERED_GARAGE,
+        location =
+          ParkingLocation(
+            city = city,
+            areaLabel = areaLabel,
+            publicMaskedLatitude = city.centerLatitude,
+            publicMaskedLongitude = city.centerLongitude,
+            maskRadiusMeters = AppEnvironment.PRE_BOOKING_LOCATION_MASK_RADIUS_METERS,
+            privateGateSummary = "Guard Gate A",
+          ),
+        hourlyRatePkr = 150,
+        dailyRatePkr = 1200,
+        monthlyRatePkr = null,
+        monthlyEnabled = false,
+        totalBays = 1,
+        availableBays = 1,
+        supportedVehicles = setOf(VehicleType.CAR, VehicleType.SUV),
+        amenities = setOf(ParkingAmenity.COVERED, ParkingAmenity.CCTV),
+        schedule =
+          AvailabilitySchedule(
+            openDays = ParkingDayOfWeek.entries.toSet(),
+            openHour = 0,
+            closeHour = 23,
+            is24Hours = true,
+          ),
+        isApproved = false,
+        isDemoListing = true,
+      )
+    val res = parkingRepo.createOrUpdateListing(hostUser.id, draft, publishImmediately = true)
+    assertTrue("Approved host must create and publish listing", res is HostListingMutationResult.Success)
+    return hostUser to (res as HostListingMutationResult.Success).space
+  }
+
   @Test
   fun `scenario 1 - host can create and edit their own listing`() =
     runBlocking(Dispatchers.IO) {
@@ -298,10 +359,17 @@ class Milestone4HostRobolectricTest {
     runBlocking(Dispatchers.IO) {
       seedInitializer.seedIfNeeded()
 
-      // Seeded Usman is an APPROVED host
-      val hostId = "demo-host-lhr"
-      val spaceId = "demo-lhr-01"
-      val initialSpace = parkingRepo.getSpaceById(spaceId)!!
+      val (hostUser, initialSpace) =
+        createApprovedHostWithSpace(
+          email = "usman.s3@host.pk",
+          fullName = "Usman M4 Host",
+          city = SupportedCity.LAHORE,
+          spaceId = "space-s3-lhr",
+          title = "Usman Gulberg Deck",
+          areaLabel = "Gulberg III",
+        )
+      val hostId = hostUser.id
+      val spaceId = initialSpace.id
 
       // 1. Add a second bay
       val addBayRes =
@@ -318,7 +386,20 @@ class Milestone4HostRobolectricTest {
       val vipBay = baysAfterAdd.find { it.bayCode == "Bay LHR-VIP" }
       assertNotNull(vipBay)
 
-      // 2. Create an active booking on Bay LHR-VIP
+      // 2. Create an active booking on Bay LHR-VIP for a registered Customer
+      val custUser =
+        (authRepo.registerLocalAccount(
+          DemoRegisterRequest(
+            role = UserRole.CUSTOMER,
+            fullName = "Ali S3 Driver",
+            email = "ali.s3@parkspace.pk",
+            password = "password123",
+            confirmPassword = "password123",
+            preferredCity = SupportedCity.LAHORE,
+          )
+        ) as DemoAuthResult.Success).user
+      val vehicle = userRepo.addVehicleForUser(custUser.id, VehicleType.CAR, "Civic", "LEA-303", true).getOrThrow()
+
       val now = System.currentTimeMillis()
       val futureStart =
         LocalDate.now(BookingAvailabilityValidator.PAKISTAN_ZONE)
@@ -335,9 +416,9 @@ class Milestone4HostRobolectricTest {
           bookingCode = "PS-DEMO-VIP",
           spaceId = spaceId,
           bayId = vipBay!!.id,
-          customerId = "demo-cust-01",
+          customerId = custUser.id,
           hostId = hostId,
-          vehicleId = "demo-veh-01",
+          vehicleId = vehicle.id,
           city = SupportedCity.LAHORE,
           bookingType = BookingType.HOURLY,
           status = BookingStatus.CONFIRMED,
@@ -395,38 +476,82 @@ class Milestone4HostRobolectricTest {
     runBlocking(Dispatchers.IO) {
       seedInitializer.seedIfNeeded()
 
-      val host1Id = "demo-host-lhr" // Usman (Lahore)
-      val host2Id = "demo-host-isb" // Farhan (Islamabad)
+      val (host1, space1) =
+        createApprovedHostWithSpace(
+          email = "host1.s4@host.pk",
+          fullName = "Host One Lahore",
+          city = SupportedCity.LAHORE,
+          spaceId = "space-s4-h1",
+          title = "Host 1 Garage",
+          areaLabel = "Model Town",
+        )
+      val (host2, space2) =
+        createApprovedHostWithSpace(
+          email = "host2.s4@host.pk",
+          fullName = "Host Two Islamabad",
+          city = SupportedCity.ISLAMABAD,
+          spaceId = "space-s4-h2",
+          title = "Host 2 Garage",
+          areaLabel = "F-7 Markaz",
+        )
+      val host1Id = host1.id
+      val host2Id = host2.id
+
+      val custUser =
+        (authRepo.registerLocalAccount(
+          DemoRegisterRequest(
+            role = UserRole.CUSTOMER,
+            fullName = "Bilal S4 Driver",
+            email = "bilal.s4@parkspace.pk",
+            password = "password123",
+            confirmPassword = "password123",
+            preferredCity = SupportedCity.LAHORE,
+          )
+        ) as DemoAuthResult.Success).user
+      val vehicle = userRepo.addVehicleForUser(custUser.id, VehicleType.CAR, "Swift", "LEG-404", true).getOrThrow()
+
+      val now = System.currentTimeMillis()
+      val startEpoch =
+        LocalDate.now(BookingAvailabilityValidator.PAKISTAN_ZONE)
+          .plusDays(3)
+          .atTime(10, 0)
+          .atZone(BookingAvailabilityValidator.PAKISTAN_ZONE)
+          .toInstant()
+          .toEpochMilli()
+
+      val host1BookingRes =
+        bookingRepo.createBookingWithAvailabilityCheck(
+          BookingCreateRequest(
+            spaceId = space1.id,
+            customerId = custUser.id,
+            vehicleId = vehicle.id,
+            bookingType = BookingType.HOURLY,
+            units = 2,
+            startEpochMs = startEpoch,
+            confirmDemoPaymentImmediately = true,
+          )
+        )
+      assertTrue("Host 1 booking creation must succeed", host1BookingRes is BookingMutationResult.Success)
+
+      val host2BookingRes =
+        bookingRepo.createBookingWithAvailabilityCheck(
+          BookingCreateRequest(
+            spaceId = space2.id,
+            customerId = custUser.id,
+            vehicleId = vehicle.id,
+            bookingType = BookingType.HOURLY,
+            units = 2,
+            startEpochMs = startEpoch,
+            confirmDemoPaymentImmediately = true,
+          )
+        )
+      assertTrue("Host 2 booking creation must succeed", host2BookingRes is BookingMutationResult.Success)
+      val host2Booking = (host2BookingRes as BookingMutationResult.Success).booking
 
       val host1Bookings = bookingRepo.observeBookingsForHost(host1Id).first()
-      assertFalse("Host 1 must have seeded bookings", host1Bookings.isEmpty())
+      assertEquals("Host 1 must see exactly their own booking", 1, host1Bookings.size)
       assertTrue("All bookings must belong to Host 1", host1Bookings.all { it.hostId == host1Id })
       assertTrue("No Host 2 bookings in Host 1 query", host1Bookings.none { it.hostId == host2Id })
-
-      // Create a test booking for Host 2
-      val now = System.currentTimeMillis()
-      val host2Booking =
-        Booking(
-          id = "bkg-h2-test",
-          bookingCode = "PS-H2-001",
-          spaceId = "demo-isb-01",
-          bayId = "demo-isb-01-bay-1",
-          customerId = "demo-cust-01",
-          hostId = host2Id,
-          vehicleId = "demo-veh-01",
-          city = SupportedCity.ISLAMABAD,
-          bookingType = BookingType.HOURLY,
-          status = BookingStatus.CONFIRMED,
-          startEpochMs = now + 3600_000,
-          endEpochMs = now + 7200_000,
-          baseAmountPkr = 300,
-          serviceFeePkr = 24,
-          totalAmountPkr = 324,
-          gatePinReleased = true,
-          isDemoRecord = true,
-          createdAtEpochMs = now,
-        )
-      database.bookingDao().insertBooking(host2Booking.toEntity())
 
       // Host 1 attempts to check in Host 2's booking -> Rejected!
       val checkInAttempt = bookingRepo.hostCheckInBooking(host2Booking.id, host1Id, nowEpochMs = now)
@@ -742,10 +867,28 @@ class Milestone4HostRobolectricTest {
     runBlocking(Dispatchers.IO) {
       seedInitializer.seedIfNeeded()
 
-      val hostAId = "demo-host-lhr"
-      val spaceAId = "demo-lhr-01"
-      val hostBId = "demo-host-isb"
-      val spaceBId = "demo-isb-01"
+      val (hostA, spaceA) =
+        createApprovedHostWithSpace(
+          email = "hosta.s8@host.pk",
+          fullName = "Host A Bay Owner",
+          city = SupportedCity.LAHORE,
+          spaceId = "space-s8-a",
+          title = "Host A Garage",
+          areaLabel = "Gulberg III",
+        )
+      val (hostB, spaceB) =
+        createApprovedHostWithSpace(
+          email = "hostb.s8@host.pk",
+          fullName = "Host B Foreign",
+          city = SupportedCity.ISLAMABAD,
+          spaceId = "space-s8-b",
+          title = "Host B Garage",
+          areaLabel = "Blue Area",
+        )
+      val hostAId = hostA.id
+      val spaceAId = spaceA.id
+      val hostBId = hostB.id
+      val spaceBId = spaceB.id
 
       val bayA = parkingRepo.observeBaysForSpace(spaceAId).first().first()
       val bayB = parkingRepo.observeBaysForSpace(spaceBId).first().first()
@@ -773,17 +916,23 @@ class Milestone4HostRobolectricTest {
 
   @Test
   fun `scenario 9 - host can add, edit, and deactivate own bays via HostBaysManagerDialog`() {
-    val hostId = "demo-host-lhr"
-    val spaceId = "demo-lhr-01"
-
-    runBlocking(Dispatchers.IO) {
-      seedInitializer.seedIfNeeded()
-      val hostUser = userRepo.getUserById(hostId)!!
-      sessionManager.activateAuthenticatedUser(hostUser)
-    }
+    val (spaceId, initialSpace) =
+      runBlocking(Dispatchers.IO) {
+        seedInitializer.seedIfNeeded()
+        val (hostUser, space) =
+          createApprovedHostWithSpace(
+            email = "host.s9@host.pk",
+            fullName = "Sanaullah S9 Host",
+            city = SupportedCity.LAHORE,
+            spaceId = "space-s9-lhr",
+            title = "Sanaullah Bay Plaza",
+            areaLabel = "Johar Town",
+          )
+        sessionManager.activateAuthenticatedUser(hostUser)
+        space.id to space
+      }
 
     val viewModel = createHostDashboardViewModel()
-    val initialSpace = runBlocking(Dispatchers.IO) { parkingRepo.getSpaceById(spaceId)!! }
     viewModel.openBaysManager(initialSpace)
 
     composeRule.setContent {

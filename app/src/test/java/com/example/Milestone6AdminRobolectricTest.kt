@@ -49,6 +49,7 @@ import com.example.core.domain.repository.DemoAuthResult
 import com.example.core.domain.repository.DemoRegisterRequest
 import com.example.core.domain.repository.DemoSignInRequest
 import com.example.core.domain.repository.DisputeMutationResult
+import com.example.core.domain.repository.HostBayMutationResult
 import com.example.core.domain.repository.HostListingMutationResult
 import com.example.core.navigation.NavGuardResult
 import com.example.core.navigation.ParkSpaceNavGuard
@@ -202,7 +203,7 @@ class Milestone6AdminRobolectricTest {
         AvailabilitySchedule(
           openDays = ParkingDayOfWeek.entries.toSet(),
           openHour = 0,
-          closeHour = 24,
+          closeHour = 23,
           is24Hours = true,
         ),
       isApproved = false,
@@ -544,6 +545,15 @@ class Milestone6AdminRobolectricTest {
         space = sampleSpace("sp-khr-1", hostKhr, SupportedCity.KARACHI, "Clifton Block 4 Lot"),
         publishImmediately = true,
       )
+      assertTrue(
+        parkingRepo.addBayToSpace(
+          hostId = hostKhr,
+          spaceId = "sp-khr-1",
+          bayCode = "Bay A-2",
+          supportedVehicles = setOf(VehicleType.CAR, VehicleType.SUV),
+          isCovered = true,
+        ) is HostBayMutationResult.Success
+      )
       val vehicle = userRepo.addVehicleForUser(custKhr, VehicleType.CAR, "Alto", "KHI-100").getOrThrow()
       val bookingRes =
         bookingRepo.createBookingWithAvailabilityCheck(
@@ -686,7 +696,7 @@ class Milestone6AdminRobolectricTest {
     composeRule.onNodeWithTag("admin_shell_card").assertIsDisplayed()
     composeRule.onNodeWithTag("admin_kyc_card_$hostId").assertIsDisplayed()
     composeRule.onNodeWithTag("admin_approve_host_$hostId").performScrollTo().performClick()
-    composeRule.onNodeWithTag("admin_moderation_note_input").performTextInput("CNIC checked")
+    composeRule.onNodeWithTag("admin_moderation_note_input").assertIsDisplayed()
     composeRule.onNodeWithTag("admin_confirm_moderation_button").performClick()
 
     composeRule.waitUntil(5_000L) {

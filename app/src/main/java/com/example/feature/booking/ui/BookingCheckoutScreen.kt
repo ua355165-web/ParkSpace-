@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -42,24 +44,32 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.core.common.UiState
-import com.example.core.config.AppEnvironment
 import com.example.core.config.BookingType
 import com.example.core.designsystem.components.AddDemoVehicleDialog
-import com.example.core.designsystem.components.ParkSpaceModeBanner
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
+import com.example.core.designsystem.components.ParkSpaceAtmosphericBackground
+import com.example.core.designsystem.components.ParkSpaceCompactDemoPill
+import com.example.core.designsystem.components.ParkSpaceGlassIconButton
+import com.example.core.designsystem.components.ParkSpaceGlassSurface
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSecondaryButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSwitch
 import com.example.core.designsystem.components.ParkSpaceStateContainer
 import com.example.core.designsystem.components.ParkSpaceStatusPill
 import com.example.core.designsystem.components.StatusTone
@@ -70,10 +80,7 @@ import com.example.feature.marketplace.ui.DemoPaymentMethodSelector
 import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceMonoPriceStyle
 import com.example.ui.theme.ParkSpaceSpacing
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
+import com.example.ui.theme.ParkSpaceThemeTokens
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -92,69 +99,68 @@ fun BookingCheckoutScreen(
   onAddVehicle: (VehicleType, String, String) -> Unit = { _, _, _ -> },
   onSelectPaymentMethod: (DemoPaymentMethod) -> Unit = {},
   modifier: Modifier = Modifier,
+  isDarkTheme: Boolean = false,
 ) {
   var showAddVehicleDialog by rememberSaveable { mutableStateOf(false) }
-  Scaffold(
-    modifier = modifier.fillMaxSize(),
-    containerColor = MaterialTheme.colorScheme.background,
-    contentWindowInsets = WindowInsets.safeDrawing,
-    topBar = {
-      TopAppBar(
-        title = {
-          Text(
-            text = stringResource(R.string.booking_checkout_title),
-            style = MaterialTheme.typography.titleLarge,
-          )
-        },
-        navigationIcon = {
-          IconButton(
-            onClick = onBack,
-            modifier =
-              Modifier.size(ParkSpaceSpacing.minTouchTarget).testTag("checkout_back_button"),
-          ) {
-            Icon(
-              imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-              contentDescription = "Back",
-            )
-          }
-        },
-        colors =
-          TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-          ),
-      )
-    },
-  ) { innerPadding ->
-    Box(
-      modifier = Modifier.fillMaxSize().padding(innerPadding),
-      contentAlignment = Alignment.TopCenter,
-    ) {
-      ParkSpaceStateContainer(
-        state = uiState,
-        modifier = Modifier.widthIn(max = ParkSpaceSpacing.maxReadableWidth).fillMaxSize(),
-      ) { data ->
-        Column(
-          modifier =
-            Modifier.fillMaxSize()
-              .verticalScroll(rememberScrollState())
-              .padding(
-                horizontal = ParkSpaceSpacing.screenHorizontal,
-                vertical = ParkSpaceSpacing.md,
-              ),
-          verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.md),
-        ) {
-          ParkSpaceModeBanner(mode = AppEnvironment.currentMode)
+  val semantic = ParkSpaceThemeTokens.semantic
 
-          // 1. Privacy-Safe Space Summary
-          Surface(
-            modifier = Modifier.fillMaxWidth().testTag("checkout_space_summary_card"),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+  ParkSpaceAtmosphericBackground(isDarkTheme = isDarkTheme, modifier = modifier) {
+    Scaffold(
+      modifier = Modifier.fillMaxSize(),
+      containerColor = Color.Transparent,
+      contentWindowInsets = WindowInsets.safeDrawing,
+      topBar = {
+        TopAppBar(
+          title = {
+            Text(
+              text = stringResource(R.string.booking_checkout_title),
+              style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            )
+          },
+          navigationIcon = {
+            ParkSpaceGlassIconButton(
+              onClick = onBack,
+              icon = Icons.AutoMirrored.Outlined.ArrowBack,
+              contentDescription = "Back",
+              testTag = "checkout_back_button",
+              modifier = Modifier.padding(start = ParkSpaceSpacing.xs),
+            )
+          },
+          actions = {
+            ParkSpaceCompactDemoPill(
+              modifier = Modifier.padding(end = ParkSpaceSpacing.xs).testTag("mode_banner"),
+            )
+          },
+          colors =
+            TopAppBarDefaults.topAppBarColors(
+              containerColor = Color.Transparent,
+            ),
+        )
+      },
+    ) { innerPadding ->
+      Box(
+        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        contentAlignment = Alignment.TopCenter,
+      ) {
+        ParkSpaceStateContainer(
+          state = uiState,
+          modifier = Modifier.widthIn(max = ParkSpaceSpacing.maxReadableWidth).fillMaxSize(),
+        ) { data ->
+          Column(
+            modifier =
+              Modifier.fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                  horizontal = ParkSpaceSpacing.screenHorizontal,
+                  vertical = ParkSpaceSpacing.md,
+                ),
+            verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.md),
           ) {
-            Column(
-              modifier = Modifier.padding(ParkSpaceSpacing.cardPadding),
-              verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
+            // 1. Privacy-Safe Space Summary
+            ParkSpaceGlassSurface(
+              modifier = Modifier.testTag("checkout_space_summary_card"),
+              accentGlow = semantic.customerGlow,
+              contentPaddingDp = 18,
             ) {
               Row(
                 horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
@@ -169,7 +175,10 @@ fun BookingCheckoutScreen(
                   tone = StatusTone.INFO,
                 )
               }
-              Text(text = data.publicSpace.title, style = MaterialTheme.typography.titleLarge)
+              Text(
+                text = data.publicSpace.title,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+              )
               Text(
                 text =
                   "${data.maskedLocation.areaLabel}, ${data.maskedLocation.city.displayName} • ~${data.maskedLocation.maskRadiusMeters}m masked until confirmed",
@@ -177,18 +186,12 @@ fun BookingCheckoutScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
             }
-          }
 
-          // 2. Vehicle Selection
-          Surface(
-            modifier = Modifier.fillMaxWidth().testTag("checkout_vehicle_card"),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-          ) {
-            Column(
-              modifier = Modifier.padding(ParkSpaceSpacing.cardPadding),
-              verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+            // 2. Vehicle Selection
+            ParkSpaceGlassSurface(
+              modifier = Modifier.testTag("checkout_vehicle_card"),
+              accentGlow = semantic.customerGlow,
+              contentPaddingDp = 18,
             ) {
               Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -224,15 +227,12 @@ fun BookingCheckoutScreen(
                   style = MaterialTheme.typography.bodyMedium,
                   color = MaterialTheme.colorScheme.error,
                 )
-                OutlinedButton(
+                ParkSpaceLiquidGlassSecondaryButton(
+                  text = "Add My Vehicle to Book",
+                  leadingIcon = Icons.Outlined.Add,
                   onClick = { showAddVehicleDialog = true },
-                  modifier =
-                    Modifier.fillMaxWidth()
-                      .defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
-                      .testTag("checkout_empty_add_vehicle_button"),
-                ) {
-                  Text("Add My Vehicle to Book")
-                }
+                  modifier = Modifier.fillMaxWidth().testTag("checkout_empty_add_vehicle_button"),
+                )
               } else {
                 FlowRow(
                   horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
@@ -250,6 +250,7 @@ fun BookingCheckoutScreen(
                               if (!compatible) " [Unsupported]" else "",
                         )
                       },
+                      shape = CircleShape,
                       modifier =
                         Modifier.defaultMinSize(minHeight = ParkSpaceSpacing.minTouchTarget)
                           .testTag("checkout_vehicle_${vehicle.id}"),
@@ -263,18 +264,12 @@ fun BookingCheckoutScreen(
                 }
               }
             }
-          }
 
-          // 3. Booking Type + Date / Time / Duration Controls
-          Surface(
-            modifier = Modifier.fillMaxWidth().testTag("checkout_schedule_card"),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-          ) {
-            Column(
-              modifier = Modifier.padding(ParkSpaceSpacing.cardPadding),
-              verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.sm),
+            // 3. Booking Type + Date / Time / Duration Controls
+            ParkSpaceGlassSurface(
+              modifier = Modifier.testTag("checkout_schedule_card"),
+              accentGlow = semantic.customerGlow,
+              contentPaddingDp = 18,
             ) {
               Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -463,13 +458,12 @@ fun BookingCheckoutScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
             }
-          }
 
-          // 4. Live Slot Availability Banner
-          val avail = data.availability
-          Surface(
-            modifier = Modifier.fillMaxWidth().testTag("checkout_availability_card"),
-            shape = MaterialTheme.shapes.medium,
+            // 4. Live Slot Availability Banner
+            val avail = data.availability
+            Surface(
+              modifier = Modifier.fillMaxWidth().testTag("checkout_availability_card"),
+              shape = RoundedCornerShape(18.dp),
             color =
               if (avail?.isAvailable == true) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
               else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
@@ -517,17 +511,15 @@ fun BookingCheckoutScreen(
           }
 
           // 5. Price Breakdown & Demo Escrow Option
-          Surface(
-            modifier = Modifier.fillMaxWidth().testTag("checkout_price_breakdown_card"),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+          ParkSpaceGlassSurface(
+            modifier = Modifier.testTag("checkout_price_breakdown_card"),
+            accentGlow = semantic.customerGlow,
+            contentPaddingDp = 18,
           ) {
-            Column(
-              modifier = Modifier.padding(ParkSpaceSpacing.cardPadding),
-              verticalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
-            ) {
-              Text("PKR Price Breakdown (Demo)", style = MaterialTheme.typography.titleMedium)
+            Text(
+              text = "PKR Price Breakdown (Demo)",
+              style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            )
               val pricing = data.pricing
               if (pricing != null) {
                 PriceRow(
@@ -587,7 +579,7 @@ fun BookingCheckoutScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                   )
                 }
-                Switch(
+                ParkSpaceLiquidGlassSwitch(
                   checked = data.form.confirmDemoPaymentImmediately,
                   onCheckedChange = onToggleImmediateDemoPayment,
                   modifier = Modifier.testTag("checkout_immediate_payment_switch"),
@@ -620,16 +612,13 @@ fun BookingCheckoutScreen(
                 )
               }
             }
-          }
 
-          // Policy summary
-          Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surfaceVariant,
-          ) {
+            // Policy summary
+            ParkSpaceGlassSurface(
+              accentGlow = semantic.customerGlow,
+              contentPaddingDp = 14,
+            ) {
             Row(
-              modifier = Modifier.padding(ParkSpaceSpacing.sm),
               horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
               verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -658,7 +647,7 @@ fun BookingCheckoutScreen(
           if (data.form.submissionError != null) {
             Surface(
               modifier = Modifier.fillMaxWidth().testTag("checkout_submission_error"),
-              shape = MaterialTheme.shapes.small,
+              shape = RoundedCornerShape(14.dp),
               color = MaterialTheme.colorScheme.errorContainer,
             ) {
               Text(
@@ -670,7 +659,7 @@ fun BookingCheckoutScreen(
             }
           }
 
-          ParkSpacePrimaryButton(
+          ParkSpaceLiquidGlassButton(
             text =
               if (data.form.isSubmitting) "Checking Availability..."
               else if (data.form.confirmDemoPaymentImmediately) "Confirm Demo Booking"
@@ -686,6 +675,7 @@ fun BookingCheckoutScreen(
           Spacer(modifier = Modifier.height(ParkSpaceSpacing.lg))
         }
       }
+    }
     }
   }
 

@@ -1,11 +1,13 @@
 package com.example.feature.booking.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,6 +26,7 @@ import com.example.core.domain.model.Booking
 import com.example.feature.booking.domain.BookingAvailabilityValidator
 import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -80,11 +83,13 @@ fun SimulatedDemoQrPass(
   val matrix = remember(payload) { buildDeterministicQrMatrix(payload, gridSize) }
   val moduleColor = MaterialTheme.colorScheme.onSurface
   val quietZoneColor = MaterialTheme.colorScheme.surface
+  val semantic = ParkSpaceThemeTokens.semantic
 
   Surface(
     modifier = modifier.testTag("simulated_demo_qr_pass"),
-    shape = MaterialTheme.shapes.small,
+    shape = RoundedCornerShape(16.dp),
     color = quietZoneColor,
+    border = BorderStroke(1.dp, semantic.glassBorder),
   ) {
     Column(
       modifier = Modifier.padding(ParkSpaceSpacing.sm),

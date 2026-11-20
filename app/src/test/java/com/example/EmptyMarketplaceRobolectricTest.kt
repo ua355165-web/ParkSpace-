@@ -136,12 +136,10 @@ class EmptyMarketplaceRobolectricTest {
       }
 
       composeRule.waitForIdle()
-      composeRule.onNodeWithTag("welcome_city_empty_state").assertIsDisplayed()
-      composeRule.onNodeWithText("No parking spaces available yet.").assertIsDisplayed()
-      composeRule.onNodeWithTag("city_chip_lahore").assertIsDisplayed()
-      composeRule.onNodeWithTag("city_chip_islamabad").assertIsDisplayed()
-      composeRule.onNodeWithTag("city_chip_faisalabad").assertIsDisplayed()
-      composeRule.onNodeWithTag("city_chip_karachi").assertIsDisplayed()
+      composeRule.onNodeWithTag("customer_entry_card").assertIsDisplayed()
+      composeRule.onNodeWithTag("host_entry_card").assertIsDisplayed()
+      composeRule.onNodeWithText("Lahore").assertDoesNotExist()
+      composeRule.onNodeWithText("Gulberg").assertDoesNotExist()
     } finally {
       db.close()
     }

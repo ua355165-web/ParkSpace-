@@ -17,16 +17,33 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.core.common.UiState
 import com.example.core.config.BookingType
+import com.example.core.config.SupportedCity
+import com.example.core.config.UserRole
+import com.example.core.data.demo.DemoAdminRepositoryImpl
+import com.example.core.data.demo.DemoAuthRepositoryImpl
 import com.example.core.data.demo.DemoBookingRepositoryImpl
 import com.example.core.data.demo.DemoParkingRepositoryImpl
 import com.example.core.data.demo.DemoUserProfileRepositoryImpl
 import com.example.core.database.ParkSpaceDemoDatabase
+import com.example.core.domain.model.AvailabilitySchedule
 import com.example.core.domain.model.BookingStatus
+import com.example.core.domain.model.ParkingAmenity
+import com.example.core.domain.model.ParkingDayOfWeek
+import com.example.core.domain.model.ParkingLocation
+import com.example.core.domain.model.ParkingSpace
+import com.example.core.domain.model.ParkingType
+import com.example.core.domain.model.UserProfile
+import com.example.core.domain.model.VehicleType
+import com.example.core.domain.repository.AdminMutationResult
 import com.example.core.domain.repository.BookingCreateRequest
 import com.example.core.domain.repository.BookingMutationResult
+import com.example.core.domain.repository.DemoAuthResult
+import com.example.core.domain.repository.DemoRegisterRequest
+import com.example.core.domain.repository.HostListingMutationResult
 import com.example.core.navigation.NavGuardResult
 import com.example.core.navigation.ParkSpaceNavGuard
 import com.example.core.navigation.ParkSpaceRoute
+import com.example.demo.sandbox.DemoSandboxActionResult
 import com.example.demo.sandbox.DemoSessionManager
 import com.example.demo.seed.DemoSeedInitializer
 import com.example.feature.booking.BookingCheckoutViewModel
@@ -63,10 +80,22 @@ class Milestone3BookingRobolectricTest {
   private lateinit var database: ParkSpaceDemoDatabase
   private lateinit var seedInitializer: DemoSeedInitializer
   private lateinit var userRepo: DemoUserProfileRepositoryImpl
+  private lateinit var authRepo: DemoAuthRepositoryImpl
   private lateinit var parkingRepo: DemoParkingRepositoryImpl
   private lateinit var bookingRepo: DemoBookingRepositoryImpl
   private lateinit var sessionManager: DemoSessionManager
+  private lateinit var adminRepo: DemoAdminRepositoryImpl
   private lateinit var viewModelStore: ViewModelStore
+
+  private data class M3TestFixtures(
+    val hostUser: UserProfile,
+    val cust1User: UserProfile,
+    val cust1VehicleId: String,
+    val cust2User: UserProfile,
+    val cust2VehicleId: String,
+    val space1Id: String,
+    val space2Id: String,
+  )
 
   @Before
   fun setUp() {
@@ -76,10 +105,12 @@ class Milestone3BookingRobolectricTest {
         .allowMainThreadQueries()
         .build()
     seedInitializer = DemoSeedInitializer(database)
-    userRepo = DemoUserProfileRepositoryImpl(database.userDao())
-    parkingRepo = DemoParkingRepositoryImpl(database.parkingDao())
+    userRepo = DemoUserProfileRepositoryImpl(database.userDao(), database)
+    authRepo = DemoAuthRepositoryImpl(database)
+    parkingRepo = DemoParkingRepositoryImpl(database)
     bookingRepo = DemoBookingRepositoryImpl(database)
     sessionManager = DemoSessionManager(userRepo)
+    adminRepo = DemoAdminRepositoryImpl(database) { sessionManager.session.value }
     viewModelStore = ViewModelStore()
   }
 
@@ -89,30 +120,132 @@ class Milestone3BookingRobolectricTest {
     database.close()
   }
 
+  private suspend fun seedM3AccountsAndListings(): M3TestFixtures {
+    seedInitializer.seedIfNeeded()
+    val hostUser =
+      (authRepo.registerLocalAccount(
+        DemoRegisterRequest(
+          role = UserRole.HOST,
+          fullName = "Hamid M3 Host",
+          email = "hamid.m3@parkspace.demo",
+          password = "password123",
+          confirmPassword = "password123",
+          preferredCity = SupportedCity.LAHORE,
+          businessAlias = "Gulberg Deck",
+        )
+      ) as DemoAuthResult.Success).user
+
+    val cust1User =
+      (authRepo.registerLocalAccount(
+        DemoRegisterRequest(
+          role = UserRole.CUSTOMER,
+          fullName = "Sana Driver",
+          email = "sana.m3@parkspace.demo",
+          password = "password123",
+          confirmPassword = "password123",
+          preferredCity = SupportedCity.LAHORE,
+        )
+      ) as DemoAuthResult.Success).user
+    val veh1 = userRepo.addVehicleForUser(cust1User.id, VehicleType.CAR, "Corolla", "LEA-101", true).getOrThrow()
+
+    val cust2User =
+      (authRepo.registerLocalAccount(
+        DemoRegisterRequest(
+          role = UserRole.CUSTOMER,
+          fullName = "Umar Driver",
+          email = "umar.m3@parkspace.demo",
+          password = "password123",
+          confirmPassword = "password123",
+          preferredCity = SupportedCity.KARACHI,
+        )
+      ) as DemoAuthResult.Success).user
+    val veh2 = userRepo.addVehicleForUser(cust2User.id, VehicleType.CAR, "Alto", "KHI-202", true).getOrThrow()
+
+    assertTrue(sessionManager.unlockPrivateDemoAdminSandbox(true) is DemoSandboxActionResult.Success)
+    val adminId = DemoSessionManager.PRIVATE_DEMO_ADMIN_ID
+    assertTrue(adminRepo.approveHostKyc(adminId, hostUser.id, "KYC verified", 1_000L) is AdminMutationResult.Success)
+
+    val space1 =
+      ParkingSpace(
+        id = "m3-space-gulberg",
+        hostId = hostUser.id,
+        title = "Gulberg Prime Garage",
+        description = "Covered basement bays in Gulberg III.",
+        parkingType = ParkingType.COVERED_GARAGE,
+        location =
+          ParkingLocation(
+            city = SupportedCity.LAHORE,
+            areaLabel = "Gulberg III",
+            publicMaskedLatitude = SupportedCity.LAHORE.centerLatitude,
+            publicMaskedLongitude = SupportedCity.LAHORE.centerLongitude,
+            maskRadiusMeters = 200,
+            privateGateSummary = "Gate B Guard Desk",
+            privateExactLatitude = SupportedCity.LAHORE.centerLatitude + 0.001,
+            privateExactLongitude = SupportedCity.LAHORE.centerLongitude + 0.001,
+          ),
+        hourlyRatePkr = 200,
+        dailyRatePkr = 1500,
+        monthlyRatePkr = 22_000,
+        monthlyEnabled = true,
+        totalBays = 2,
+        availableBays = 2,
+        supportedVehicles = setOf(VehicleType.CAR, VehicleType.SUV),
+        amenities = setOf(ParkingAmenity.COVERED, ParkingAmenity.CCTV),
+        schedule = AvailabilitySchedule(ParkingDayOfWeek.entries.toSet(), 0, 23, true),
+        isApproved = false,
+        isDemoListing = true,
+      )
+    val space2 =
+      space1.copy(
+        id = "m3-space-dha",
+        title = "DHA Phase 5 Single Bay",
+        location = space1.location.copy(areaLabel = "DHA Phase 5"),
+        totalBays = 1,
+        availableBays = 1,
+        supportedVehicles = setOf(VehicleType.CAR),
+      )
+
+    listOf(space1, space2).forEach { sp ->
+      assertTrue(parkingRepo.createOrUpdateListing(hostUser.id, sp, publishImmediately = true) is HostListingMutationResult.Success)
+      assertTrue(adminRepo.approveListing(adminId, sp.id, "Approved for booking", 2_000L) is AdminMutationResult.Success)
+    }
+    sessionManager.signOutDemoSandbox()
+
+    return M3TestFixtures(
+      hostUser = hostUser,
+      cust1User = cust1User,
+      cust1VehicleId = veh1.id,
+      cust2User = cust2User,
+      cust2VehicleId = veh2.id,
+      space1Id = space1.id,
+      space2Id = space2.id,
+    )
+  }
+
+  private fun nextSafeMorningEpochMs(daysAhead: Long = 2): Long =
+    ZonedDateTime.now(BookingAvailabilityValidator.PAKISTAN_ZONE)
+      .toLocalDate()
+      .plusDays(daysAhead)
+      .let { date ->
+        val safeDate = if (date.monthValue == 12 && date.dayOfMonth == 25) date.plusDays(1) else date
+        ZonedDateTime.of(safeDate, LocalTime.of(10, 0), BookingAvailabilityValidator.PAKISTAN_ZONE)
+      }
+      .toInstant()
+      .toEpochMilli()
+
   @Test
   fun `room transactional booking creation saves confirmed and pending states, enforces capacity, and protects gate pin`() =
     runBlocking(Dispatchers.IO) {
-      seedInitializer.seedIfNeeded()
-
-      val futureStart =
-        ZonedDateTime.now(BookingAvailabilityValidator.PAKISTAN_ZONE)
-          .toLocalDate()
-          .plusDays(2)
-          .let { date ->
-            val safeDate =
-              if (date.monthValue == 12 && date.dayOfMonth == 25) date.plusDays(1) else date
-            ZonedDateTime.of(safeDate, LocalTime.of(10, 0), BookingAvailabilityValidator.PAKISTAN_ZONE)
-          }
-          .toInstant()
-          .toEpochMilli()
+      val fixtures = seedM3AccountsAndListings()
+      val futureStart = nextSafeMorningEpochMs(2)
 
       // 1. Pending payment booking keeps gatePinReleased = false and demoEntryPin = null
       val pendingRes =
         bookingRepo.createBookingWithAvailabilityCheck(
           BookingCreateRequest(
-            spaceId = "demo-lhr-01",
-            customerId = "demo-cust-lhr",
-            vehicleId = "demo-veh-1",
+            spaceId = fixtures.space1Id,
+            customerId = fixtures.cust1User.id,
+            vehicleId = fixtures.cust1VehicleId,
             bookingType = BookingType.HOURLY,
             units = 2,
             startEpochMs = futureStart,
@@ -129,9 +262,9 @@ class Milestone3BookingRobolectricTest {
       val dupRes =
         bookingRepo.createBookingWithAvailabilityCheck(
           BookingCreateRequest(
-            spaceId = "demo-lhr-01",
-            customerId = "demo-cust-lhr",
-            vehicleId = "demo-veh-1",
+            spaceId = fixtures.space1Id,
+            customerId = fixtures.cust1User.id,
+            vehicleId = fixtures.cust1VehicleId,
             bookingType = BookingType.HOURLY,
             units = 2,
             startEpochMs = futureStart,
@@ -142,29 +275,27 @@ class Milestone3BookingRobolectricTest {
 
       // 3. Completing Demo payment unlocks PIN & transitions CONFIRMED -> CHECKED_IN -> CHECKED_OUT
       val paid =
-        bookingRepo.confirmPendingBookingPayment(pending.id, "demo-cust-lhr")
+        bookingRepo.confirmPendingBookingPayment(pending.id, fixtures.cust1User.id)
           as BookingMutationResult.Success
       assertEquals(BookingStatus.CONFIRMED, paid.booking.status)
       assertTrue(paid.booking.gatePinReleased)
       assertNotNull(paid.booking.demoEntryPin)
 
       val checkedIn =
-        bookingRepo.checkInBooking(pending.id, "demo-cust-lhr") as BookingMutationResult.Success
+        bookingRepo.checkInBooking(pending.id, fixtures.cust1User.id) as BookingMutationResult.Success
       assertEquals(BookingStatus.CHECKED_IN, checkedIn.booking.status)
 
       val checkedOut =
-        bookingRepo.checkOutBooking(pending.id, "demo-cust-lhr") as BookingMutationResult.Success
+        bookingRepo.checkOutBooking(pending.id, fixtures.cust1User.id) as BookingMutationResult.Success
       assertEquals(BookingStatus.CHECKED_OUT, checkedOut.booking.status)
 
       // 4. Tight-capacity space (availableBays = 1) rejects overlapping second booking
-      val smallSpace = parkingRepo.getSpaceById("demo-lhr-02")!!.copy(availableBays = 1, totalBays = 1)
-      parkingRepo.upsertSpace(smallSpace)
       val firstBook =
         bookingRepo.createBookingWithAvailabilityCheck(
           BookingCreateRequest(
-            spaceId = "demo-lhr-02",
-            customerId = "demo-cust-lhr",
-            vehicleId = "demo-veh-1",
+            spaceId = fixtures.space2Id,
+            customerId = fixtures.cust1User.id,
+            vehicleId = fixtures.cust1VehicleId,
             bookingType = BookingType.HOURLY,
             units = 2,
             startEpochMs = futureStart,
@@ -176,9 +307,9 @@ class Milestone3BookingRobolectricTest {
       val secondOverlapping =
         bookingRepo.createBookingWithAvailabilityCheck(
           BookingCreateRequest(
-            spaceId = "demo-lhr-02",
-            customerId = "demo-cust-khi",
-            vehicleId = "demo-veh-3",
+            spaceId = fixtures.space2Id,
+            customerId = fixtures.cust2User.id,
+            vehicleId = fixtures.cust2VehicleId,
             bookingType = BookingType.HOURLY,
             units = 1,
             startEpochMs = futureStart + 3_600_000L,
@@ -190,7 +321,7 @@ class Milestone3BookingRobolectricTest {
       // 5. Cancellation persists Demo refund and revokes gate access
       val firstId = (firstBook as BookingMutationResult.Success).booking.id
       val cancelled =
-        bookingRepo.cancelBooking(firstId, "demo-cust-lhr") as BookingMutationResult.Success
+        bookingRepo.cancelBooking(firstId, fixtures.cust1User.id) as BookingMutationResult.Success
       assertEquals(BookingStatus.CANCELLED, cancelled.booking.status)
       assertFalse(cancelled.booking.gatePinReleased)
       assertNull(cancelled.booking.demoEntryPin)
@@ -200,14 +331,14 @@ class Milestone3BookingRobolectricTest {
   @Test
   fun `navigation guard restricts booking checkout confirmation and history to customer role`() =
     runBlocking(Dispatchers.IO) {
-      seedInitializer.seedIfNeeded()
+      val fixtures = seedM3AccountsAndListings()
       val guest = sessionManager.session.value
       assertTrue(
-        ParkSpaceNavGuard.evaluateAccess(ParkSpaceRoute.BookingCheckout("demo-lhr-01"), guest)
+        ParkSpaceNavGuard.evaluateAccess(ParkSpaceRoute.BookingCheckout(fixtures.space1Id), guest)
           is NavGuardResult.Denied
       )
 
-      sessionManager.switchToDemoUser("demo-host-lhr")
+      assertTrue(sessionManager.activateAuthenticatedUser(fixtures.hostUser) is DemoSandboxActionResult.Success)
       assertTrue(
         ParkSpaceNavGuard.evaluateAccess(
           ParkSpaceRoute.CustomerBookings,
@@ -215,14 +346,14 @@ class Milestone3BookingRobolectricTest {
         ) is NavGuardResult.Denied
       )
 
-      sessionManager.switchToDemoUser("demo-cust-lhr")
+      assertTrue(sessionManager.activateAuthenticatedUser(fixtures.cust1User) is DemoSandboxActionResult.Success)
       val customer = sessionManager.session.value
       assertTrue(
-        ParkSpaceNavGuard.evaluateAccess(ParkSpaceRoute.BookingCheckout("demo-lhr-01"), customer)
+        ParkSpaceNavGuard.evaluateAccess(ParkSpaceRoute.BookingCheckout(fixtures.space1Id), customer)
           is NavGuardResult.Allowed
       )
       assertTrue(
-        ParkSpaceNavGuard.evaluateAccess(ParkSpaceRoute.BookingConfirmation("demo-bkg-01"), customer)
+        ParkSpaceNavGuard.evaluateAccess(ParkSpaceRoute.BookingConfirmation("any-booking-id"), customer)
           is NavGuardResult.Allowed
       )
       assertTrue(
@@ -233,10 +364,12 @@ class Milestone3BookingRobolectricTest {
 
   @Test
   fun `checkout compose screen creates booking and transitions to confirmation and history`() {
-    runBlocking(Dispatchers.IO) {
-      seedInitializer.seedIfNeeded()
-      sessionManager.switchToDemoUser("demo-cust-lhr")
-    }
+    val fixtures =
+      runBlocking(Dispatchers.IO) {
+        seedM3AccountsAndListings().also {
+          assertTrue(sessionManager.activateAuthenticatedUser(it.cust1User) is DemoSandboxActionResult.Success)
+        }
+      }
 
     val checkoutVm =
       ViewModelProvider(
@@ -244,7 +377,7 @@ class Milestone3BookingRobolectricTest {
         object : ViewModelProvider.Factory {
           @Suppress("UNCHECKED_CAST")
           override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-            BookingCheckoutViewModel("demo-lhr-01", parkingRepo, userRepo, bookingRepo, sessionManager) as T
+            BookingCheckoutViewModel(fixtures.space1Id, parkingRepo, userRepo, bookingRepo, sessionManager) as T
         },
       )[BookingCheckoutViewModel::class.java]
 
@@ -285,10 +418,41 @@ class Milestone3BookingRobolectricTest {
 
   @Test
   fun `confirmation and history compose screens render demo pin, qr pass, and seeded bookings`() {
-    runBlocking(Dispatchers.IO) {
-      seedInitializer.seedIfNeeded()
-      sessionManager.switchToDemoUser("demo-cust-lhr")
-    }
+    val (upcomingBookingId, completedBookingId) =
+      runBlocking(Dispatchers.IO) {
+        val fixtures = seedM3AccountsAndListings()
+        assertTrue(sessionManager.activateAuthenticatedUser(fixtures.cust1User) is DemoSandboxActionResult.Success)
+        val upcomingRes =
+          bookingRepo.createBookingWithAvailabilityCheck(
+            BookingCreateRequest(
+              spaceId = fixtures.space1Id,
+              customerId = fixtures.cust1User.id,
+              vehicleId = fixtures.cust1VehicleId,
+              bookingType = BookingType.HOURLY,
+              units = 2,
+              startEpochMs = nextSafeMorningEpochMs(2),
+              confirmDemoPaymentImmediately = true,
+            )
+          ) as BookingMutationResult.Success
+
+        val completedStart = nextSafeMorningEpochMs(3)
+        val completedRes =
+          bookingRepo.createBookingWithAvailabilityCheck(
+            BookingCreateRequest(
+              spaceId = fixtures.space1Id,
+              customerId = fixtures.cust1User.id,
+              vehicleId = fixtures.cust1VehicleId,
+              bookingType = BookingType.HOURLY,
+              units = 1,
+              startEpochMs = completedStart,
+              confirmDemoPaymentImmediately = true,
+            )
+          ) as BookingMutationResult.Success
+        assertTrue(bookingRepo.checkInBooking(completedRes.booking.id, fixtures.cust1User.id) is BookingMutationResult.Success)
+        assertTrue(bookingRepo.checkOutBooking(completedRes.booking.id, fixtures.cust1User.id) is BookingMutationResult.Success)
+
+        upcomingRes.booking.id to completedRes.booking.id
+      }
 
     val historyVm =
       ViewModelProvider(
@@ -300,7 +464,7 @@ class Milestone3BookingRobolectricTest {
         },
       )[BookingHistoryViewModel::class.java]
 
-    val detailFlow = historyVm.observeBookingDetail("demo-bkg-01")
+    val detailFlow = historyVm.observeBookingDetail(upcomingBookingId)
     var showHistory by androidx.compose.runtime.mutableStateOf(false)
     composeRule.setContent {
       val detailState = detailFlow.collectAsStateWithLifecycle().value
@@ -349,14 +513,14 @@ class Milestone3BookingRobolectricTest {
     composeRule.onNodeWithTag("view_my_bookings_button").performScrollTo().performClick()
     composeRule.waitUntil(timeoutMillis = 5_000) {
       ShadowLooper.idleMainLooper()
-      composeRule.onAllNodesWithTag("booking_history_card_demo-bkg-01").fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("booking_history_card_$upcomingBookingId").fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithTag("booking_history_card_demo-bkg-01").assertIsDisplayed()
+    composeRule.onNodeWithTag("booking_history_card_$upcomingBookingId").assertIsDisplayed()
     composeRule.onNodeWithTag("bookings_tab_completed").performClick()
     composeRule.waitUntil(timeoutMillis = 5_000) {
       ShadowLooper.idleMainLooper()
-      composeRule.onAllNodesWithTag("booking_history_card_demo-bkg-02").fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("booking_history_card_$completedBookingId").fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithTag("booking_history_card_demo-bkg-02").assertIsDisplayed()
+    composeRule.onNodeWithTag("booking_history_card_$completedBookingId").assertIsDisplayed()
   }
 }

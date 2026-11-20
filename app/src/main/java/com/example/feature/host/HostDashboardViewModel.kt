@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.core.config.SupportedCity
+import com.example.core.config.UserRole
 import com.example.core.di.ParkSpaceAppContainer
 import com.example.core.domain.model.AvailabilitySchedule
 import com.example.core.domain.model.Booking
@@ -15,6 +16,7 @@ import com.example.core.domain.model.VehicleType
 import com.example.core.domain.repository.BookingMutationResult
 import com.example.core.domain.repository.BookingRepository
 import com.example.core.domain.repository.ChatRepository
+import com.example.core.domain.repository.DemoAuthRepository
 import com.example.core.domain.repository.DisputeRepository
 import com.example.core.domain.repository.HostBayMutationResult
 import com.example.core.domain.repository.HostListingMutationResult
@@ -34,6 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -64,6 +67,7 @@ data class HostDashboardUiState(
   val unreadNotificationsCount: Int = 0,
   val unreadChatsCount: Int = 0,
   val openDisputesCount: Int = 0,
+  val hasCompanionCustomerAccount: Boolean = false,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -75,6 +79,7 @@ class HostDashboardViewModel(
   private val notificationRepository: NotificationRepository? = null,
   private val chatRepository: ChatRepository? = null,
   private val disputeRepository: DisputeRepository? = null,
+  private val demoAuthRepository: DemoAuthRepository? = null,
 ) : ViewModel() {
 
   private val _activeTab = MutableStateFlow(HostDashboardTab.OVERVIEW)
@@ -88,7 +93,7 @@ class HostDashboardViewModel(
   private val hostDataFlow: Flow<Pair<UserProfile?, Triple<HostProfile?, List<ParkingSpace>, List<Booking>>>> =
     demoSessionManager.session.flatMapLatest { session: DemoSessionState ->
       val user = session.activeUser
-      val hostId = user?.id
+      val hostId = if (user?.role == UserRole.HOST) user.id else null
       if (hostId == null) {
         flowOf(null to Triple<HostProfile?, List<ParkingSpace>, List<Booking>>(null, emptyList(), emptyList()))
       } else {
@@ -112,24 +117,47 @@ class HostDashboardViewModel(
       else parkingRepository.observeBaysForSpace(space.id)
     }
 
+  private val hasCompanionCustomerFlow: Flow<Boolean> =
+    demoSessionManager.session.flatMapLatest { session ->
+      val user = session.activeUser
+      if (
+        user == null ||
+          user.role != UserRole.HOST ||
+          !user.isSelfRegisteredDemoAccount ||
+          demoAuthRepository == null
+      ) {
+        flowOf(false)
+      } else {
+        flow {
+          emit(
+            demoAuthRepository.hasAccountForEmailAndRole(
+              email = user.emailMasked,
+              role = UserRole.CUSTOMER,
+            )
+          )
+        }
+      }
+    }
+
   private val hostCountsFlow =
     demoSessionManager.session.flatMapLatest { session ->
       val hostId = session.activeUser?.id
       if (hostId == null) {
-        flowOf(Triple(0, 0, 0))
+        flowOf(Triple(0, 0, 0) to false)
       } else {
         combine(
           notificationRepository?.observeUnreadCount(hostId) ?: flowOf(0),
           chatRepository?.observeThreadSummariesForUser(hostId) ?: flowOf(emptyList()),
           disputeRepository?.observeDisputesForHost(hostId) ?: flowOf(emptyList()),
-        ) { unreadNotifs, threads, disputes ->
+          hasCompanionCustomerFlow,
+        ) { unreadNotifs, threads, disputes, hasCompanionCustomer ->
           val unreadChats = threads.sumOf { it.unreadCount }
           val openDisputes =
             disputes.count {
               it.status == com.example.core.domain.model.DisputeStatus.OPEN ||
                 it.status == com.example.core.domain.model.DisputeStatus.UNDER_REVIEW
             }
-          Triple(unreadNotifs, unreadChats, openDisputes)
+          Triple(unreadNotifs, unreadChats, openDisputes) to hasCompanionCustomer
         }
       }
     }
@@ -159,7 +187,9 @@ class HostDashboardViewModel(
       val feedback = args[7] as String?
       val err = args[8] as String?
       @Suppress("UNCHECKED_CAST")
-      val counts = args[9] as Triple<Int, Int, Int>
+      val countsAndCompanion = args[9] as Pair<Triple<Int, Int, Int>, Boolean>
+      val counts = countsAndCompanion.first
+      val hasCompanionCustomer = countsAndCompanion.second
 
       val activeUser = sessionAndData.first
       val (profile, spaces, bookings) = sessionAndData.second
@@ -184,6 +214,7 @@ class HostDashboardViewModel(
         unreadNotificationsCount = counts.first,
         unreadChatsCount = counts.second,
         openDisputesCount = counts.third,
+        hasCompanionCustomerAccount = hasCompanionCustomer,
       )
     }.stateIn(
       scope = viewModelScope,
@@ -362,6 +393,29 @@ class HostDashboardViewModel(
     }
   }
 
+  fun updateHostOnboardingProfile(
+    businessAlias: String,
+    operatingCities: Set<SupportedCity>,
+  ) {
+    val hostId = demoSessionManager.session.value.activeUser?.id ?: return
+    viewModelScope.launch {
+      userProfileRepository
+        .updateHostOnboardingProfile(hostId, businessAlias, operatingCities)
+        .onSuccess {
+          _actionFeedback.value = "Host settings updated (${it.displayBusinessAlias})."
+          _errorMessage.value = null
+        }
+        .onFailure { err ->
+          _errorMessage.value = err.message ?: "Could not update host settings."
+        }
+    }
+  }
+
+  fun showActionFeedback(message: String) {
+    _actionFeedback.value = message
+    _errorMessage.value = null
+  }
+
   fun dismissFeedback() {
     _actionFeedback.value = null
     _errorMessage.value = null
@@ -378,6 +432,7 @@ class HostDashboardViewModel(
         notificationRepository = container.notificationRepository,
         chatRepository = container.chatRepository,
         disputeRepository = container.disputeRepository,
+        demoAuthRepository = container.demoAuthRepository,
       ) as T
   }
 }

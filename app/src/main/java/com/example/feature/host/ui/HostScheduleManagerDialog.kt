@@ -13,12 +13,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Remove
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,15 +42,15 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.core.designsystem.components.ParkSpacePrimaryButton
-import com.example.core.designsystem.components.ParkSpaceStatusPill
-import com.example.core.designsystem.components.StatusTone
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassButton
+import com.example.core.designsystem.components.ParkSpaceLiquidGlassSecondaryButton
 import com.example.core.domain.model.AvailabilitySchedule
 import com.example.core.domain.model.ParkingDayOfWeek
 import com.example.core.domain.model.ParkingSpace
 import com.example.feature.booking.domain.BookingAvailabilityValidator
 import com.example.ui.theme.ParkSpaceMonoCodeStyle
 import com.example.ui.theme.ParkSpaceSpacing
+import com.example.ui.theme.ParkSpaceThemeTokens
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -79,6 +80,8 @@ fun HostScheduleManagerDialog(
     LocalDate.now(BookingAvailabilityValidator.PAKISTAN_ZONE).plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
   }
 
+  val semantic = ParkSpaceThemeTokens.semantic
+
   Dialog(
     onDismissRequest = onDismiss,
     properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -90,8 +93,9 @@ fun HostScheduleManagerDialog(
           .widthIn(max = 540.dp)
           .padding(ParkSpaceSpacing.sm)
           .testTag("host_schedule_manager_dialog"),
-      shape = MaterialTheme.shapes.medium,
-      color = MaterialTheme.colorScheme.surface,
+      shape = RoundedCornerShape(24.dp),
+      color = semantic.glassSurfaceElevated,
+      border = BorderStroke(1.dp, semantic.glassBorder),
       tonalElevation = 6.dp,
     ) {
       Column(
@@ -133,6 +137,7 @@ fun HostScheduleManagerDialog(
                   }
               },
               label = { Text(day.shortLabel) },
+              shape = CircleShape,
               modifier = Modifier.testTag("host_schedule_day_chip_${day.name}"),
             )
           }
@@ -160,8 +165,9 @@ fun HostScheduleManagerDialog(
 
         if (!is24h) {
           Surface(
-            shape = MaterialTheme.shapes.small,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            shape = RoundedCornerShape(16.dp),
+            color = semantic.glassSurface,
+            border = BorderStroke(1.dp, semantic.glassBorder),
             modifier = Modifier.fillMaxWidth(),
           ) {
             Column(
@@ -287,6 +293,7 @@ fun HostScheduleManagerDialog(
             label = { Text("Add Date (YYYY-MM-DD)") },
             placeholder = { Text("e.g. $tomorrowIso") },
             singleLine = true,
+            shape = RoundedCornerShape(14.dp),
             modifier = Modifier.weight(1f).testTag("host_new_blackout_input"),
           )
           OutlinedButton(
@@ -302,7 +309,7 @@ fun HostScheduleManagerDialog(
               }
             },
             modifier = Modifier.testTag("host_add_blackout_button"),
-            shape = MaterialTheme.shapes.small,
+            shape = CircleShape,
           ) {
             Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.size(ParkSpaceSpacing.xxs))
@@ -316,7 +323,7 @@ fun HostScheduleManagerDialog(
           OutlinedButton(
             onClick = { blackouts = blackouts + tomorrowIso },
             modifier = Modifier.testTag("host_quick_blackout_tomorrow"),
-            shape = MaterialTheme.shapes.extraSmall,
+            shape = CircleShape,
           ) {
             Text("+ Tomorrow", style = MaterialTheme.typography.labelSmall)
           }
@@ -336,23 +343,21 @@ fun HostScheduleManagerDialog(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.spacedBy(ParkSpaceSpacing.xs),
         ) {
-          OutlinedButton(
+          ParkSpaceLiquidGlassSecondaryButton(
+            text = "Cancel",
             onClick = onDismiss,
             modifier = Modifier.weight(1f),
-            shape = MaterialTheme.shapes.small,
-          ) {
-            Text("Cancel")
-          }
-          ParkSpacePrimaryButton(
+          )
+          ParkSpaceLiquidGlassButton(
             text = "Save Schedule",
             onClick = {
               if (selectedDays.isEmpty()) {
                 validationError = "Select at least one operating day."
-                return@ParkSpacePrimaryButton
+                return@ParkSpaceLiquidGlassButton
               }
               if (!is24h && openHour >= closeHour) {
                 validationError = "Opening hour must be before closing hour."
-                return@ParkSpacePrimaryButton
+                return@ParkSpaceLiquidGlassButton
               }
 
               val schedule =
