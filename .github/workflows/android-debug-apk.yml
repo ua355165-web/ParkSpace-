@@ -54,13 +54,24 @@ jobs:
       - name: Verify Build Environment
         shell: bash
         run: |
+          set -euo pipefail
+
           gradle --version
-          test -d "$ANDROID_HOME/platforms/android-36"
-          test -d "$ANDROID_HOME/build-tools/36.0.0"
+
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+
+          test -d "$SDK_ROOT/platforms/android-36"
+          test -d "$SDK_ROOT/build-tools/36.0.0"
+
+          test -x "$SDK_ROOT/build-tools/36.0.0/apksigner"
+          test -x "$SDK_ROOT/build-tools/36.0.0/zipalign"
+          test -x "$SDK_ROOT/build-tools/36.0.0/aapt"
 
       - name: Generate Debug Keystore
         shell: bash
         run: |
+          set -euo pipefail
+
           keytool -genkeypair -v \
             -keystore "$GITHUB_WORKSPACE/debug.keystore" \
             -storepass android \
@@ -71,26 +82,88 @@ jobs:
             -keysize 2048 \
             -validity 10000
 
-          test -f "$GITHUB_WORKSPACE/debug.keystore"
+          test -s "$GITHUB_WORKSPACE/debug.keystore"
 
       - name: Build ParkSpace Debug APK
         shell: bash
         run: |
-          gradle --no-daemon assembleDebug
+          set -euo pipefail
 
-      - name: Verify APK
+          gradle --no-daemon --stacktrace assembleDebug
+
+      - name: Verify APK Integrity and Signing
         shell: bash
         run: |
+          set -euo pipefail
+
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          BUILD_TOOLS="$SDK_ROOT/build-tools/36.0.0"
           APK="app/build/outputs/apk/debug/app-debug.apk"
+
           test -s "$APK"
+
+          echo "Checking APK ZIP integrity..."
+          unzip -t "$APK"
+
+          echo "Checking APK package name..."
+          "$BUILD_TOOLS/aapt" dump badging "$APK" \
+            | grep -F "package: name='pk.parkspace.marketplace'"
+
+          echo "Checking APK alignment..."
+          "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
+
+          echo "Checking APK signature..."
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+
+          echo "APK verification completed successfully."
           ls -lh "$APK"
-          file "$APK"
+
+          cd "$(dirname "$APK")"
+          sha256sum app-debug.apk > app-debug.apk.sha256
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ParkSpace-Debug-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Download Uploaded APK for Verification
+        uses: actions/download-artifact@v4
+        with:
+          name: ParkSpace-Debug-APK
+          path: artifact-roundtrip
+
+      - name: Verify Uploaded Artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK="artifact-roundtrip/app-debug.apk"
+
+          test -s "$APK"
+          test -s "artifact-roundtrip/app-debug.apk.sha256"
+
+          echo "Checking uploaded APK checksum..."
+          cd artifact-roundtrip
+          sha256sum -c app-debug.apk.sha256
+          cd ..
+
+          echo "Checking uploaded APK ZIP integrity..."
+          unzip -t "$APK"
+
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          BUILD_TOOLS="$SDK_ROOT/build-tools/36.0.0"
+
+          echo "Checking uploaded APK package..."
+          "$BUILD_TOOLS/aapt" dump badging "$APK" \
+            | grep -F "package: name='pk.parkspace.marketplace'"
+
+          echo "Checking uploaded APK signature..."
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+
+          echo "SUCCESS: Uploaded APK passed all verification checks."
           
